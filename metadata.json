@@ -1,0 +1,7 @@
+{
+  "name": "Thai Kao Mai Party",
+  "description": "The official platform for Thai Kao Mai Party, focusing on technocratic innovation, digital integrity, and progressive policies for Thailand.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

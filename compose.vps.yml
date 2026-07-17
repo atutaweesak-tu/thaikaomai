@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    init: true
+    restart: unless-stopped
+    ports:
+      - "8080:3001"
+    volumes:
+      - ./data:/app/data
+      - ./public/uploads:/app/public/uploads
+      - ./.env:/app/.env:ro
+    mem_limit: 1024m

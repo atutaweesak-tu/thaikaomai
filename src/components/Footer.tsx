@@ -1,0 +1,108 @@
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Facebook, Twitter, Instagram, Youtube, Mail, MapPin, Phone } from 'lucide-react';
+import { subscribeToSiteSettings } from '../services/dataService';
+import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+
+export default function Footer() {
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    const unsub = subscribeToSiteSettings(setSettings);
+    return () => unsub();
+  }, []);
+
+  const { contact, footer } = settings;
+
+  return (
+    <footer className="bg-black/40 border-t border-white/10 pt-20 pb-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+          <div className="col-span-1 md:col-span-1">
+            <Link to="/" className="flex items-center gap-2 mb-6">
+              <img src="/tkm-logo.png" alt="ไทยก้าวใหม่" className="h-12 w-auto" />
+            </Link>
+            <p className="text-white/50 text-sm leading-relaxed mb-6">
+              {footer.description}
+            </p>
+            <div className="flex gap-4">
+              <a href={contact.facebook} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+                <Facebook size={18} />
+              </a>
+              <a href={contact.twitter} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+                <Twitter size={18} />
+              </a>
+              <a href={contact.instagram} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+                <Instagram size={18} />
+              </a>
+              <a href={contact.youtube} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+                <Youtube size={18} />
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-bold mb-6">เมนูหลัก</h4>
+            <ul className="space-y-4 text-sm text-white/50">
+              <li><Link to="/" className="hover:text-brand-neon transition-colors">หน้าหลัก</Link></li>
+              <li><Link to="/about" className="hover:text-brand-neon transition-colors">เกี่ยวกับพรรค</Link></li>
+              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">นโยบาย</Link></li>
+              <li><Link to="/team" className="hover:text-brand-neon transition-colors">ทีมพรรค</Link></li>
+              <li><Link to="/news" className="hover:text-brand-neon transition-colors">ข่าวสาร</Link></li>
+              <li><Link to="/volunteer" className="hover:text-brand-neon transition-colors">อาสาสมัคร</Link></li>
+              <li><Link to="/contact" className="hover:text-brand-neon transition-colors">ติดต่อ</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-bold mb-6">ธนู 4 ดอก</h4>
+            <ul className="space-y-4 text-sm text-white/50">
+              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างคนใหม่ พลิกโฉมการศึกษา</Link></li>
+              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างเศรษฐกิจก้าวใหม่</Link></li>
+              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างคุณภาพชีวิตใหม่</Link></li>
+              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างค่านิยมใหม่</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-bold mb-6">ติดต่อพรรค</h4>
+            <ul className="space-y-4 text-sm text-white/50">
+              {contact.address && (
+                <li className="flex items-start gap-3">
+                  <MapPin size={18} className="text-brand-neon shrink-0" />
+                  <span>{contact.address}</span>
+                </li>
+              )}
+              {contact.phone && (
+                <li className="flex items-center gap-3">
+                  <Phone size={18} className="text-brand-neon shrink-0" />
+                  <span>{contact.phone}</span>
+                </li>
+              )}
+              {contact.email && (
+                <li className="flex items-center gap-3">
+                  <Mail size={18} className="text-brand-neon shrink-0" />
+                  <span>{contact.email}</span>
+                </li>
+              )}
+            </ul>
+            {contact.qrCode && (
+              <div className="mt-6">
+                <p className="text-xs text-white/30 mb-2">สแกน QR เพื่อติดตาม</p>
+                <img src={contact.qrCode} alt="QR Code" className="w-24 h-24 object-contain rounded-xl border border-white/10 bg-white p-1.5" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 pt-10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/30">
+          <p>{footer.copyright}</p>
+          <div className="flex gap-6">
+            <Link to="/privacy" className="hover:text-white transition-colors">นโยบายความเป็นส่วนตัว</Link>
+            <Link to="/register" className="hover:text-white transition-colors">สมัครสมาชิก</Link>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

@@ -1,0 +1,252 @@
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
+
+// ─── Auth Token ───────────────────────────────────────────────────────────────
+
+const TOKEN_KEY = 'tkm_api_token';
+export const getApiToken = () => localStorage.getItem(TOKEN_KEY);
+export const setApiToken = (token: string) => localStorage.setItem(TOKEN_KEY, token);
+export const clearApiToken = () => localStorage.removeItem(TOKEN_KEY);
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getApiToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
+// ─── Generic Server API ───────────────────────────────────────────────────────
+
+type Unsubscribe = () => void;
+
+function subscribeToCollection<T>(col: string, callback: (items: T[]) => void): Unsubscribe {
+  let active = true;
+
+  const applyData = (items: T[]) => { if (active) callback(items); };
+
+  const fetchOnce = async () => {
+    if (!active || document.visibilityState === 'hidden') return;
+    try {
+      // ส่ง Authorization header เสมอถ้ามี token — collection ที่เป็นข้อมูลส่วนบุคคล
+      // (contact/volunteer/newsletter/users) ฝั่ง server ต้องการ auth ตอนอ่านด้วย
+      const res = await fetch(`/api/data/${col}?t=${Date.now()}`, { cache: 'no-store', headers: authHeaders() });
+      if (res.ok) applyData(await res.json());
+      else console.error(`[dataService] GET ${col} failed: ${res.status}`);
+    } catch (err) {
+      console.error(`[dataService] GET ${col} network error:`, err);
+    }
+  };
+
+  // Pause when tab hidden, resume immediately when tab becomes visible
+  const onVisibilityChange = () => { if (document.visibilityState === 'visible') fetchOnce(); };
+  document.addEventListener('visibilitychange', onVisibilityChange);
+
+  fetchOnce();
+  const interval = setInterval(fetchOnce, 8000);
+
+  return () => {
+    active = false;
+    clearInterval(interval);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  };
+}
+
+async function apiAdd(col: string, item: any): Promise<any> {
+  const res = await fetch(`/api/data/${col}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(item),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || `เพิ่มข้อมูลไม่สำเร็จ (${res.status})`);
+  }
+  return res.json();
+}
+
+async function apiUpdate(col: string, id: string, item: any): Promise<void> {
+  const res = await fetch(`/api/data/${col}/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(item),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || `อัพเดตข้อมูลไม่สำเร็จ (${res.status})`);
+  }
+}
+
+async function apiDelete(col: string, id: string): Promise<void> {
+  const res = await fetch(`/api/data/${col}/${id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${getApiToken() || ''}` },
+  });
+  if (!res.ok) throw new Error(`ลบข้อมูลไม่สำเร็จ`);
+}
+
+// ─── NEWS ─────────────────────────────────────────────────────────────────────
+
+export const subscribeToNews = (cb: (n: NewsItem[]) => void) => subscribeToCollection<NewsItem>('news', cb);
+export const addNews = (news: Omit<NewsItem, 'id'>) => apiAdd('news', news);
+export const updateNews = (id: string, news: Partial<NewsItem>) => apiUpdate('news', id, news);
+export const deleteNews = (id: string) => apiDelete('news', id);
+
+// ─── NEWS CATEGORIES ──────────────────────────────────────────────────────────
+// หมวดหมู่เปลี่ยนไม่บ่อย จึง fetch ครั้งเดียว (ไม่ตั้ง interval ต่อเนื่องเหมือน collection อื่น)
+// เพื่อไม่เพิ่มจำนวน connection ค้างที่หน้า admin เปิดพร้อมกันไปอีก — เบราว์เซอร์จำกัด
+// การเชื่อมต่อพร้อมกันต่อ origin ไว้ที่ ~6 (HTTP/1.1) ถ้าเกินจะทำให้ request อื่น (เช่นตอนกด "บันทึก") ค้างรอคิว
+
+export async function fetchCategories(): Promise<NewsCategory[]> {
+  try {
+    const res = await fetch(`/api/data/categories?t=${Date.now()}`, { cache: 'no-store', headers: authHeaders() });
+    return res.ok ? res.json() : [];
+  } catch {
+    return [];
+  }
+}
+export const addCategory = (category: Omit<NewsCategory, 'id'>) => apiAdd('categories', category);
+export const updateCategory = (id: string, category: Partial<NewsCategory>) => apiUpdate('categories', id, category);
+export const deleteCategory = (id: string) => apiDelete('categories', id);
+
+// ─── EVENTS ───────────────────────────────────────────────────────────────────
+
+export const subscribeToEvents = (cb: (e: EventItem[]) => void) => subscribeToCollection<EventItem>('events', cb);
+export const addEvent = (event: Omit<EventItem, 'id'>) => apiAdd('events', event);
+export const updateEvent = (id: string, event: Partial<EventItem>) => apiUpdate('events', id, event);
+export const deleteEvent = (id: string) => apiDelete('events', id);
+
+// ─── POLICIES ─────────────────────────────────────────────────────────────────
+
+export const subscribeToPolicies = (cb: (p: Policy[]) => void) => subscribeToCollection<Policy>('policies', cb);
+export const addPolicy = (policy: Omit<Policy, 'id'>) => apiAdd('policies', policy);
+export const updatePolicy = (id: string, policy: Partial<Policy>) => apiUpdate('policies', id, policy);
+export const deletePolicy = (id: string) => apiDelete('policies', id);
+
+// ─── TEAM ─────────────────────────────────────────────────────────────────────
+
+export const subscribeToTeam = (cb: (t: TeamMember[]) => void) => subscribeToCollection<TeamMember>('team', cb);
+export const addTeamMember = (member: Omit<TeamMember, 'id'>) => apiAdd('team', member);
+export const updateTeamMember = (id: string, member: Partial<TeamMember>) => apiUpdate('team', id, member);
+export const deleteTeamMember = (id: string) => apiDelete('team', id);
+
+// ─── NEWSLETTER ───────────────────────────────────────────────────────────────
+
+export const addNewsletterSubscriber = (email: string) => apiAdd('newsletter', { email, subscribedAt: new Date().toISOString() });
+export const subscribeToNewsletter = (cb: (s: NewsletterSubscriber[]) => void) => subscribeToCollection<NewsletterSubscriber>('newsletter', cb);
+
+// ─── CONTACT ──────────────────────────────────────────────────────────────────
+
+export const addContactMessage = (msg: Omit<ContactMessage, 'id'>) => apiAdd('contact', { ...msg, sentAt: new Date().toISOString() });
+export const subscribeToContact = (cb: (m: ContactMessage[]) => void) => subscribeToCollection<ContactMessage>('contact', cb);
+
+// ─── VOLUNTEER ────────────────────────────────────────────────────────────────
+
+export const addVolunteer = (item: Omit<VolunteerItem, 'id'>) => apiAdd('volunteer', { ...item, submittedAt: new Date().toISOString() });
+export const subscribeToVolunteer = (cb: (v: VolunteerItem[]) => void) => subscribeToCollection<VolunteerItem>('volunteer', cb);
+export const deleteVolunteer = (id: string) => apiDelete('volunteer', id);
+
+// ─── SITE SETTINGS ────────────────────────────────────────────────────────────
+
+const SETTINGS_LS_KEY = 'tkm_site_settings';
+let _settingsCallbacks: ((s: SiteSettings) => void)[] = [];
+
+/** Deep-merge server data with DEFAULT_SETTINGS so new fields always have defaults */
+function mergeSettings(data: any): SiteSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...data,
+    popup: { ...DEFAULT_SETTINGS.popup, ...(data?.popup ?? {}) },
+    about: { ...DEFAULT_SETTINGS.about, ...(data?.about ?? {}) },
+    privacy: { ...DEFAULT_SETTINGS.privacy, ...(data?.privacy ?? {}) },
+    hero: { ...DEFAULT_SETTINGS.hero, ...(data?.hero ?? {}) },
+    cta: { ...DEFAULT_SETTINGS.cta, ...(data?.cta ?? {}) },
+    contact: { ...DEFAULT_SETTINGS.contact, ...(data?.contact ?? {}) },
+    footer: { ...DEFAULT_SETTINGS.footer, ...(data?.footer ?? {}) },
+    pages: { ...DEFAULT_SETTINGS.pages, ...(data?.pages ?? {}) },
+  };
+}
+
+function broadcastSettings(s: SiteSettings) {
+  _settingsCallbacks.forEach(cb => cb(s));
+}
+
+export const subscribeToSiteSettings = (callback: (settings: SiteSettings) => void): Unsubscribe => {
+  const raw = localStorage.getItem(SETTINGS_LS_KEY);
+  if (raw) { try { callback(mergeSettings(JSON.parse(raw))); } catch { callback(DEFAULT_SETTINGS); } }
+  else { callback(DEFAULT_SETTINGS); }
+
+  _settingsCallbacks.push(callback);
+
+  let es: EventSource | null = null;
+  let fallback: ReturnType<typeof setInterval> | null = null;
+
+  function connect() {
+    es = new EventSource('/api/settings/stream');
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data?.hero && data?.cta && data?.contact && data?.footer) {
+          const merged = mergeSettings(data);
+          localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(merged));
+          broadcastSettings(merged);
+        }
+      } catch (err) {
+        console.error('[dataService] settings SSE parse error:', err);
+      }
+    };
+    es.onerror = () => {
+      es?.close(); es = null;
+      if (!fallback) fallback = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.hero) {
+              const merged = mergeSettings(data);
+              localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(merged));
+              broadcastSettings(merged);
+            }
+          }
+        } catch (err) {
+          console.error('[dataService] settings polling error:', err);
+        }
+      }, 3000);
+    };
+  }
+
+  connect();
+
+  return () => {
+    es?.close();
+    if (fallback) clearInterval(fallback);
+    _settingsCallbacks = _settingsCallbacks.filter(c => c !== callback);
+  };
+};
+
+export const updateSiteSettings = async (settings: SiteSettings) => {
+  localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(settings));
+  broadcastSettings(settings);
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(settings),
+    });
+    if (!res.ok) console.error(`[dataService] updateSiteSettings failed: ${res.status}`);
+  } catch (err) {
+    console.error('[dataService] updateSiteSettings network error:', err);
+  }
+};
+
+// ─── SEED DATA ────────────────────────────────────────────────────────────────
+
+export const seedInitialData = async (
+  policies: Omit<Policy, 'id'>[],
+  team: Omit<TeamMember, 'id'>[],
+  news: Omit<NewsItem, 'id'>[],
+  events: Omit<EventItem, 'id'>[]
+) => {
+  for (const p of policies) await addPolicy(p);
+  for (const m of team) await addTeamMember(m);
+  for (const n of news) await addNews(n);
+  for (const e of events) await addEvent(e);
+};

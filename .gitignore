@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# runtime data — เขียนโดย admin panel ตอนใช้งานจริง ไม่ใช่ source code
+# (contact/newsletter/volunteer จะมีข้อมูลส่วนบุคคลจริงทันทีที่มีคนส่งฟอร์ม)
+data/
+public/uploads/
+
+# Claude Code local settings — เฉพาะเครื่องนี้
+.claude/settings.local.json
