@@ -17,6 +17,7 @@ export default function Hero() {
   }, []);
 
   const h = settings.hero;
+  const isFull = h.layout === 'full';
   // รูปเดียว (leaderImage) คือของเดิมก่อนมี carousel — เก็บไว้ให้ล้มเหลวปลอดภัยถ้ายังไม่ได้ตั้งค่า leaderImages ใหม่
   const images = h.leaderImages && h.leaderImages.length > 0 ? h.leaderImages : (h.leaderImage ? [h.leaderImage] : []);
 
@@ -36,6 +37,115 @@ export default function Hero() {
     { key: 'heading3' as const, text: h.heading3, extraClass: '' },
   ].filter(l => h.textStyle?.[l.key]?.visible !== false);
 
+  const content = (
+    <motion.div
+      initial={{ opacity: 0, x: isFull ? 0 : -30, y: isFull ? 20 : 0 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      transition={{ duration: 0.8 }}
+    >
+      {h.textStyle?.badge?.visible !== false && (
+        <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8">
+          <span className="w-2 h-2 bg-brand-neon rounded-full animate-pulse" />
+          <span
+            className={`${h.textStyle?.badge?.fontSize || 'text-xs'} font-bold tracking-widest uppercase text-white/60`}
+            style={h.textStyle?.badge?.color ? { color: h.textStyle.badge.color } : undefined}
+          >
+            {h.badge}
+          </span>
+        </div>
+      )}
+
+      {headingLines.length > 0 && (
+        <h1 className="font-black tracking-tighter leading-[0.9] mb-8">
+          {headingLines.map((line, i) => {
+            const ts = h.textStyle?.[line.key];
+            return (
+              <React.Fragment key={line.key}>
+                <span
+                  className={`${ts?.fontSize || 'text-6xl md:text-8xl'} ${line.extraClass}`}
+                  style={ts?.color ? { color: ts.color } : undefined}
+                >
+                  {line.text}
+                </span>
+                {i < headingLines.length - 1 && <br />}
+              </React.Fragment>
+            );
+          })}
+        </h1>
+      )}
+
+      {h.textStyle?.description?.visible !== false && (
+        <p
+          className={`${h.textStyle?.description?.fontSize || 'text-xl'} text-white/60 leading-relaxed mb-10 ${isFull ? 'max-w-2xl' : 'max-w-lg'}`}
+          style={h.textStyle?.description?.color ? { color: h.textStyle.description.color } : undefined}
+        >
+          {h.description}
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-4">
+        <Link to={h.buttonPrimaryLink || '/policies'} className="neon-button text-lg px-8 py-4">
+          {h.buttonPrimary} <ChevronRight />
+        </Link>
+        <Link to={h.buttonSecondaryLink || '/team'} className="outline-button text-lg px-8 py-4">
+          <Play size={20} fill="currentColor" /> {h.buttonSecondary}
+        </Link>
+      </div>
+    </motion.div>
+  );
+
+  const carousel = images.length > 0 && (
+    <AnimatePresence mode="wait">
+      <motion.img
+        key={slide}
+        src={images[slide]}
+        alt={h.leaderName}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.8 }}
+        className="absolute inset-0 w-full h-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+    </AnimatePresence>
+  );
+
+  const dots = images.length > 1 && (
+    <div className="absolute top-4 right-4 z-10 flex gap-1.5">
+      {images.map((_, i) => (
+        <span
+          key={i}
+          className={`w-2 h-2 rounded-full transition-colors ${i === slide ? 'bg-brand-neon' : 'bg-white/30'}`}
+        />
+      ))}
+    </div>
+  );
+
+  if (isFull) {
+    return (
+      <section className="relative min-h-screen flex items-center overflow-hidden">
+        <div className="absolute inset-0 bg-brand-navy">
+          {carousel}
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-navy via-brand-navy/80 to-brand-navy/40" />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-navy/90 via-brand-navy/40 to-transparent" />
+        </div>
+        {dots}
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-32 pb-20 w-full">
+          <div className="max-w-2xl">
+            {content}
+            {(h.leaderName || h.leaderTitle) && (
+              <div className="mt-10 pt-8 border-t border-white/10">
+                <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-1">{h.leaderTitle}</p>
+                <h3 className="text-2xl font-black tracking-tighter">{h.leaderName}</h3>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative pt-32 pb-20 overflow-hidden">
       <div className="absolute top-0 right-0 w-1/2 h-full bg-brand-neon/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/4" />
@@ -43,60 +153,7 @@ export default function Hero() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            {h.textStyle?.badge?.visible !== false && (
-              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8">
-                <span className="w-2 h-2 bg-brand-neon rounded-full animate-pulse" />
-                <span
-                  className={`${h.textStyle?.badge?.fontSize || 'text-xs'} font-bold tracking-widest uppercase text-white/60`}
-                  style={h.textStyle?.badge?.color ? { color: h.textStyle.badge.color } : undefined}
-                >
-                  {h.badge}
-                </span>
-              </div>
-            )}
-
-            {headingLines.length > 0 && (
-              <h1 className="font-black tracking-tighter leading-[0.9] mb-8">
-                {headingLines.map((line, i) => {
-                  const ts = h.textStyle?.[line.key];
-                  return (
-                    <React.Fragment key={line.key}>
-                      <span
-                        className={`${ts?.fontSize || 'text-6xl md:text-8xl'} ${line.extraClass}`}
-                        style={ts?.color ? { color: ts.color } : undefined}
-                      >
-                        {line.text}
-                      </span>
-                      {i < headingLines.length - 1 && <br />}
-                    </React.Fragment>
-                  );
-                })}
-              </h1>
-            )}
-
-            {h.textStyle?.description?.visible !== false && (
-              <p
-                className={`${h.textStyle?.description?.fontSize || 'text-xl'} text-white/60 leading-relaxed mb-10 max-w-lg`}
-                style={h.textStyle?.description?.color ? { color: h.textStyle.description.color } : undefined}
-              >
-                {h.description}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-4">
-              <Link to={h.buttonPrimaryLink || '/policies'} className="neon-button text-lg px-8 py-4">
-                {h.buttonPrimary} <ChevronRight />
-              </Link>
-              <Link to={h.buttonSecondaryLink || '/team'} className="outline-button text-lg px-8 py-4">
-                <Play size={20} fill="currentColor" /> {h.buttonSecondary}
-              </Link>
-            </div>
-          </motion.div>
+          {content}
 
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -105,31 +162,8 @@ export default function Hero() {
             className="relative"
           >
             <div className="relative z-10 rounded-[40px] overflow-hidden border border-white/10 aspect-[4/5] bg-brand-navy">
-              {images.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.img
-                    key={slide}
-                    src={images[slide]}
-                    alt={h.leaderName}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </AnimatePresence>
-              )}
-              {images.length > 1 && (
-                <div className="absolute top-4 right-4 z-10 flex gap-1.5">
-                  {images.map((_, i) => (
-                    <span
-                      key={i}
-                      className={`w-2 h-2 rounded-full transition-colors ${i === slide ? 'bg-brand-neon' : 'bg-white/30'}`}
-                    />
-                  ))}
-                </div>
-              )}
+              {carousel}
+              {dots}
               <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-brand-navy to-transparent z-10">
                 <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-2">{h.leaderTitle}</p>
                 <h3 className="text-3xl font-black tracking-tighter">{h.leaderName}</h3>

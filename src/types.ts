@@ -115,6 +115,7 @@ export interface SiteSettings {
     updatedAt: string;
   };
   hero: {
+    layout?: 'split' | 'full'; // split = ข้อความซ้าย/รูปขวา (เดิม), full = รูปเต็มพื้นที่ ข้อความซ้อนทับ — ไม่ตั้งค่า = split
     badge: string;
     heading1: string;
     heading2: string;
@@ -194,6 +195,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     updatedAt: '2568-04-01',
   },
   hero: {
+    layout: 'split',
     badge: 'พรรคไทยก้าวใหม่ เบอร์ 49',
     heading1: 'ก้าวใหม่',
     heading2: 'ให้ไทย',

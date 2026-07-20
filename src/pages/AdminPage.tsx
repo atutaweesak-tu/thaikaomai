@@ -612,6 +612,33 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
             {/* Hero */}
             <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
               <h2 className="text-xl font-black mb-6 flex items-center gap-2"><span className="text-brand-neon">①</span> Hero Section</h2>
+              <div className="mb-6">
+                <label className="block text-xs font-bold text-white/50 mb-2">รูปแบบ Hero Section</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHero('layout', 'split')}
+                    className={`flex-1 text-sm font-bold px-4 py-3 rounded-xl border transition-colors ${
+                      (siteSettings.hero.layout ?? 'split') === 'split'
+                        ? 'bg-brand-neon/20 border-brand-neon text-brand-neon'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                    }`}
+                  >
+                    2 คอลัมน์ (ข้อความ + รูป)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHero('layout', 'full')}
+                    className={`flex-1 text-sm font-bold px-4 py-3 rounded-xl border transition-colors ${
+                      siteSettings.hero.layout === 'full'
+                        ? 'bg-brand-neon/20 border-brand-neon text-brand-neon'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                    }`}
+                  >
+                    รูปเต็มพื้นที่ (ข้อความซ้อนทับ)
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {[
                   { key: 'badge', label: 'Badge (ข้อความเล็กบนสุด)' },
