@@ -163,10 +163,15 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     setSavingSettings(true);
     setSettingsSaved(false);
     setSettingsError('');
-    await updateSiteSettings(siteSettings);
-    setSettingsSaved(true);
-    setSavingSettings(false);
-    setTimeout(() => setSettingsSaved(false), 3000);
+    try {
+      await updateSiteSettings(siteSettings);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (err: any) {
+      setSettingsError(err?.message || 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   const setHero = (key: string, val: string) =>

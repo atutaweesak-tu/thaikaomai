@@ -243,18 +243,19 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
 }
 
 export const updateSiteSettings = async (settings: SiteSettings) => {
+  const res = await fetch('/api/settings', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || `บันทึกไม่สำเร็จ (${res.status})`);
+  }
+  // อัพเดต local cache/broadcast หลังยืนยันกับ server สำเร็จแล้วเท่านั้น — เดิมทำก่อนเรียก fetch
+  // เลยแสดงผล "บันทึกแล้ว" ในหน้า admin ได้ทั้งที่ server ปฏิเสธ (เช่น session หมดอายุ, 401)
   localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(settings));
   broadcastSettings(settings);
-  try {
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(settings),
-    });
-    if (!res.ok) console.error(`[dataService] updateSiteSettings failed: ${res.status}`);
-  } catch (err) {
-    console.error('[dataService] updateSiteSettings network error:', err);
-  }
 };
 
 // ─── SEED DATA ────────────────────────────────────────────────────────────────
