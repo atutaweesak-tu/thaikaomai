@@ -5,6 +5,16 @@ import { useLocation } from 'react-router-dom';
 import { subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
 
+const DISMISS_KEY_PREFIX = 'tkm_popup_dismissed_';
+
+// hash รูปเป็น key สั้นๆ แทนใช้ base64 เต็มๆ (รูปที่อัพโหลดจาก admin อาจยาวหลายร้อย KB) —
+// ผูก key กับเนื้อหารูป ไม่ใช่ key ตายตัว เพื่อให้ popup ใหม่ (รูปเปลี่ยน) ยังเด้งได้แม้เคยปิดอันเก่าไปแล้ว
+function hashImage(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  return hash.toString(36);
+}
+
 export default function PopupBanner() {
   const location = useLocation();
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
@@ -15,9 +25,12 @@ export default function PopupBanner() {
     return () => unsub();
   }, []);
 
+  const popupKey = settings.popup.image ? DISMISS_KEY_PREFIX + hashImage(settings.popup.image) : '';
+
   useEffect(() => {
     const { enabled, image, startDate, endDate } = settings.popup ?? {};
     if (!enabled || !image) { setVisible(false); return; }
+    if (popupKey && localStorage.getItem(popupKey)) { setVisible(false); return; } // เคยกดปิดอันนี้ไปแล้ว ไม่เด้งซ้ำ
 
     const now = new Date();
     if (startDate && now < new Date(startDate)) { setVisible(false); return; }
@@ -25,11 +38,14 @@ export default function PopupBanner() {
 
     const timer = setTimeout(() => setVisible(true), 600);
     return () => clearTimeout(timer);
-  }, [settings.popup]);
+  }, [settings.popup, popupKey]);
 
   if (location.pathname === '/admin') return null;
 
-  const close = () => setVisible(false);
+  const close = () => {
+    if (popupKey) localStorage.setItem(popupKey, '1');
+    setVisible(false);
+  };
 
   const handleImageClick = () => {
     const link = settings.popup.link;
