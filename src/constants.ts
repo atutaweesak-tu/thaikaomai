@@ -4,7 +4,7 @@ import {
   Heart,
   ShieldCheck
 } from 'lucide-react';
-import { Policy, TeamMember, NewsItem, EventItem } from './types';
+import { Policy, TeamMember, NewsItem, EventItem, PageBlock } from './types';
 
 export const POLICIES: Policy[] = [
   {
@@ -117,4 +117,14 @@ export const EVENTS: EventItem[] = [
     location: 'ทั่วประเทศ',
     time: 'ติดตามประกาศจากพรรค'
   }
+];
+
+// ลำดับ section เริ่มต้นของหน้าแรก — ใช้ตอน collection "homeblocks" ยังว่าง (deploy ใหม่/ยังไม่ได้ seed)
+// เพื่อให้หน้าแรกยังแสดงผลลำดับเดิมได้ทันทีโดยไม่ต้องกรอกข้อมูลก่อน
+export const DEFAULT_HOME_BLOCKS: PageBlock[] = [
+  { id: 'default_hero', type: 'hero', order: 0, published: true },
+  { id: 'default_policies', type: 'policies', order: 1, published: true },
+  { id: 'default_team', type: 'team', order: 2, published: true },
+  { id: 'default_news', type: 'news', order: 3, published: true },
+  { id: 'default_cta', type: 'cta', order: 4, published: true },
 ];

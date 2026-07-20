@@ -1,4 +1,4 @@
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock } from '../types';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 
@@ -106,6 +106,13 @@ export async function fetchCategories(): Promise<NewsCategory[]> {
 export const addCategory = (category: Omit<NewsCategory, 'id'>) => apiAdd('categories', category);
 export const updateCategory = (id: string, category: Partial<NewsCategory>) => apiUpdate('categories', id, category);
 export const deleteCategory = (id: string) => apiDelete('categories', id);
+
+// ─── HOME PAGE BLOCKS (ลำดับ section หน้าแรก) ─────────────────────────────────
+
+export const subscribeToHomeBlocks = (cb: (b: PageBlock[]) => void) => subscribeToCollection<PageBlock>('homeblocks', cb);
+export const addHomeBlock = (block: Omit<PageBlock, 'id'>) => apiAdd('homeblocks', block);
+export const updateHomeBlock = (id: string, block: Partial<PageBlock>) => apiUpdate('homeblocks', id, block);
+export const deleteHomeBlock = (id: string) => apiDelete('homeblocks', id);
 
 // ─── EVENTS ───────────────────────────────────────────────────────────────────
 

@@ -63,6 +63,24 @@ export interface NewsCategory {
   order?: number;
 }
 
+/** ลำดับ section ของหน้าแรก — 5 ชนิดคงที่ (แก้ไม่ได้/ลบไม่ได้) + 'promo' ที่ admin เพิ่มเองได้หลายอัน */
+export type HomeBlockType = 'hero' | 'policies' | 'team' | 'news' | 'cta' | 'promo';
+
+export interface PageBlock extends AuditFields {
+  id: string;
+  type: HomeBlockType;
+  order: number;
+  published?: boolean;
+  publishAt?: string;
+  unpublishAt?: string;
+  // ── ใช้เฉพาะ type: 'promo' ──
+  title?: string;
+  description?: string;
+  image?: string;
+  link?: string;
+  buttonText?: string;
+}
+
 export interface NewsletterSubscriber {
   id: string;
   email: string;
@@ -75,6 +93,13 @@ export interface PopupSettings {
   link: string;
   startDate: string;
   endDate: string;
+}
+
+/** ปรับขนาด/สี/เปิดปิดของข้อความแต่ละชิ้นใน Hero — ไม่ตั้งค่า = ใช้ค่า default เดิมของ element นั้น */
+export interface TextStyle {
+  fontSize?: string;
+  color?: string;
+  visible?: boolean;
 }
 
 export interface SiteSettings {
@@ -97,9 +122,18 @@ export interface SiteSettings {
     description: string;
     buttonPrimary: string;
     buttonSecondary: string;
+    buttonPrimaryLink?: string;
+    buttonSecondaryLink?: string;
     leaderImage: string;
     leaderName: string;
     leaderTitle: string;
+    textStyle?: {
+      badge?: TextStyle;
+      heading1?: TextStyle;
+      heading2?: TextStyle;
+      heading3?: TextStyle;
+      description?: TextStyle;
+    };
   };
   cta: {
     heading1: string;
@@ -166,9 +200,12 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     description: 'พรรคไทยก้าวใหม่ มุ่งมั่นพลิกโฉมประเทศไทยด้วยนโยบาย "ธนู 4 ดอก" สร้างคนใหม่ เศรษฐกิจใหม่ คุณภาพชีวิตใหม่ และค่านิยมใหม่ เพื่อให้ไทยกลับมาเป็นผู้นำในอาเซียน',
     buttonPrimary: 'ดูนโยบาย ธนู 4 ดอก',
     buttonSecondary: 'วิสัยทัศน์พรรค',
+    buttonPrimaryLink: '/policies',
+    buttonSecondaryLink: '/team',
     leaderImage: '',
     leaderName: 'ดร.สุชัชวีร์ สุวรรณสวัสดิ์',
     leaderTitle: 'หัวหน้าพรรค',
+    textStyle: {},
   },
   cta: {
     heading1: 'ร่วมก้าวใหม่',

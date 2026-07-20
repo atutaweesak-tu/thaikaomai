@@ -15,6 +15,12 @@ export default function Hero() {
 
   const h = settings.hero;
 
+  const headingLines = [
+    { key: 'heading1' as const, text: h.heading1, extraClass: '' },
+    { key: 'heading2' as const, text: h.heading2, extraClass: 'text-brand-neon' },
+    { key: 'heading3' as const, text: h.heading3, extraClass: '' },
+  ].filter(l => h.textStyle?.[l.key]?.visible !== false);
+
   return (
     <section className="relative pt-32 pb-20 overflow-hidden">
       <div className="absolute top-0 right-0 w-1/2 h-full bg-brand-neon/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/4" />
@@ -27,28 +33,51 @@ export default function Hero() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
           >
-            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8">
-              <span className="w-2 h-2 bg-brand-neon rounded-full animate-pulse" />
-              <span className="text-xs font-bold tracking-widest uppercase text-white/60">
-                {h.badge}
-              </span>
-            </div>
+            {h.textStyle?.badge?.visible !== false && (
+              <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full mb-8">
+                <span className="w-2 h-2 bg-brand-neon rounded-full animate-pulse" />
+                <span
+                  className={`${h.textStyle?.badge?.fontSize || 'text-xs'} font-bold tracking-widest uppercase text-white/60`}
+                  style={h.textStyle?.badge?.color ? { color: h.textStyle.badge.color } : undefined}
+                >
+                  {h.badge}
+                </span>
+              </div>
+            )}
 
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-[0.9] mb-8">
-              {h.heading1}<br />
-              <span className="text-brand-neon">{h.heading2}</span><br />
-              {h.heading3}
-            </h1>
+            {headingLines.length > 0 && (
+              <h1 className="font-black tracking-tighter leading-[0.9] mb-8">
+                {headingLines.map((line, i) => {
+                  const ts = h.textStyle?.[line.key];
+                  return (
+                    <React.Fragment key={line.key}>
+                      <span
+                        className={`${ts?.fontSize || 'text-6xl md:text-8xl'} ${line.extraClass}`}
+                        style={ts?.color ? { color: ts.color } : undefined}
+                      >
+                        {line.text}
+                      </span>
+                      {i < headingLines.length - 1 && <br />}
+                    </React.Fragment>
+                  );
+                })}
+              </h1>
+            )}
 
-            <p className="text-xl text-white/60 leading-relaxed mb-10 max-w-lg">
-              {h.description}
-            </p>
+            {h.textStyle?.description?.visible !== false && (
+              <p
+                className={`${h.textStyle?.description?.fontSize || 'text-xl'} text-white/60 leading-relaxed mb-10 max-w-lg`}
+                style={h.textStyle?.description?.color ? { color: h.textStyle.description.color } : undefined}
+              >
+                {h.description}
+              </p>
+            )}
 
             <div className="flex flex-wrap gap-4">
-              <Link to="/policies" className="neon-button text-lg px-8 py-4">
+              <Link to={h.buttonPrimaryLink || '/policies'} className="neon-button text-lg px-8 py-4">
                 {h.buttonPrimary} <ChevronRight />
               </Link>
-              <Link to="/team" className="outline-button text-lg px-8 py-4">
+              <Link to={h.buttonSecondaryLink || '/team'} className="outline-button text-lg px-8 py-4">
                 <Play size={20} fill="currentColor" /> {h.buttonSecondary}
               </Link>
             </div>

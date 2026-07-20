@@ -137,6 +137,7 @@ const DEFAULT_ADMIN_TABS = ALL_TABS.filter(t => t !== 'settings' && t !== 'users
 const COLLECTION_TAB: Record<string, string> = {
   news: 'news', categories: 'news', events: 'events', policies: 'policies', team: 'team',
   newsletter: 'newsletter', contact: 'contact', volunteer: 'volunteer', users: 'users',
+  homeblocks: 'settings',
 };
 
 function requireTab(req: IncomingMessage, res: ServerResponse, tab: string): boolean {

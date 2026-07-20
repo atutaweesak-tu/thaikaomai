@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, Save, X, Database, Newspaper,
   Calendar, BookOpen, Users, Mail, MessageSquare, LogIn,
   AlertTriangle, Eye, EyeOff, ShieldCheck, UserPlus, LogOut, Settings, Upload,
-  ChevronUp, ChevronDown, Heart, Phone
+  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import {
@@ -16,19 +16,24 @@ import {
   subscribeToVolunteer, deleteVolunteer,
   subscribeToSiteSettings, updateSiteSettings,
   fetchCategories, addCategory, deleteCategory,
+  subscribeToHomeBlocks, addHomeBlock, updateHomeBlock, deleteHomeBlock,
   seedInitialData, getApiToken,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
-import { POLICIES, TEAM, NEWS, EVENTS } from '../constants';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle } from '../types';
+import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 
-type Tab = 'news' | 'events' | 'policies' | 'team' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings';
+type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings';
 
 // จัดกลุ่มแท็บให้เห็นเป็นหมวดหมู่ชัดเจนในแถบเมนู — ไม่กระทบ logic ด้านใน แค่จัดการแสดงผล
 const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
-  { label: 'เนื้อหาเว็บ', tabs: ['news', 'events', 'policies', 'team'] },
+  { label: 'เนื้อหาเว็บ', tabs: ['news', 'events', 'policies', 'team', 'homeBlocks'] },
   { label: 'ข้อมูลติดต่อ', tabs: ['newsletter', 'contact', 'volunteer'] },
   { label: 'ระบบ', tabs: ['users', 'settings'] },
 ];
+
+// homeBlocks ไม่ใช่แท็บสิทธิ์จริงฝั่ง server (COLLECTION_TAB['homeblocks'] = 'settings')
+// เพราะจัดวางลำดับหน้าแรกถือเป็นสิทธิ์ระดับเดียวกับตั้งค่าเว็บ ไม่ต้องเพิ่มปุ่มสิทธิ์ใหม่ใน .env
+const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings' };
 
 async function uploadImage(file: File): Promise<string> {
   if (file.size > 5 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกิน 5 MB');
@@ -49,6 +54,36 @@ const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', 
 const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_POLICY: Omit<Policy, 'id'> = { title: '', description: '', icon: 'BookOpen', iconImage: '', color: '#E6FF00', published: true, publishAt: '', unpublishAt: '', featuredHome: false };
 const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', category: 'leader', published: true, featuredHome: false };
+const EMPTY_PROMO_BLOCK: Omit<PageBlock, 'id'> = { type: 'promo', order: 0, title: '', description: '', image: '', link: '', buttonText: '', published: true, publishAt: '', unpublishAt: '' };
+const FONT_SIZE_OPTIONS = [
+  { value: '', label: 'ค่าเริ่มต้น' },
+  { value: 'text-sm', label: 'เล็ก' },
+  { value: 'text-base', label: 'ปกติ' },
+  { value: 'text-lg', label: 'ใหญ่กว่าปกติ' },
+  { value: 'text-xl', label: 'ใหญ่' },
+  { value: 'text-2xl', label: 'ใหญ่ x2' },
+  { value: 'text-3xl', label: 'ใหญ่ x3' },
+  { value: 'text-4xl', label: 'ใหญ่ x4' },
+  { value: 'text-5xl', label: 'ใหญ่ x5' },
+  { value: 'text-6xl', label: 'ใหญ่ x6' },
+  { value: 'text-7xl', label: 'ใหญ่ x7' },
+  { value: 'text-8xl', label: 'ใหญ่พิเศษ' },
+];
+const HERO_STYLE_KEYS = ['badge', 'heading1', 'heading2', 'heading3'] as const;
+const HERO_LINK_OPTIONS = [
+  { value: '/', label: 'หน้าแรก' },
+  { value: '/about', label: 'เกี่ยวกับพรรค' },
+  { value: '/policies', label: 'นโยบาย' },
+  { value: '/team', label: 'ทีมพรรค' },
+  { value: '/news', label: 'ข่าวสาร' },
+  { value: '/contact', label: 'ติดต่อเรา' },
+  { value: '/volunteer', label: 'อาสาสมัคร' },
+  { value: '/register', label: 'สมัครสมาชิก' },
+];
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+  hero: 'Hero (ส่วนหัว)', policies: 'นโยบาย (ธนู 4 ดอก)', team: 'ทีมพรรค',
+  news: 'ข่าวสาร & กิจกรรม', cta: 'ชวนสมัครสมาชิก (CTA)', promo: 'แบนเนอร์โปรโมท',
+};
 
 export default function AdminPage() {
   const { user, profile, login, logout } = useAuth();
@@ -71,6 +106,8 @@ export default function AdminPage() {
   const [volunteer, setVolunteer] = useState<VolunteerItem[]>([]);
   const [categories, setCategories] = useState<NewsCategory[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [homeBlocks, setHomeBlocks] = useState<PageBlock[]>([]);
+  const [seedingHomeBlocks, setSeedingHomeBlocks] = useState(false);
 const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -92,6 +129,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const isSuperAdmin = profile?.role === 'super_admin';
   // แท็บที่บัญชีนี้มีสิทธิ์เห็น/จัดการ — มาจาก session (ตั้งค่าได้ต่อ admin ผ่าน ADMIN_n_TABS ใน .env)
   const allowedTabs = profile?.allowedTabs?.length ? profile.allowedTabs : (isSuperAdmin ? TAB_GROUPS.flatMap(g => g.tabs) : []);
+  // homeBlocks ไม่มีสิทธิ์ของตัวเอง — ใช้สิทธิ์แท็บ 'settings' แทนผ่าน TAB_PERMISSION ด้านบน
+  const hasTabPermission = (t: Tab) => allowedTabs.includes(TAB_PERMISSION[t] ?? t);
 
   const reloadCategories = () => { fetchCategories().then(setCategories); };
 
@@ -106,6 +145,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       subscribeToContact(setContact),
       subscribeToVolunteer(setVolunteer),
       subscribeToSiteSettings(setSiteSettings),
+      subscribeToHomeBlocks(setHomeBlocks),
     ];
     reloadCategories(); // หมวดหมู่เปลี่ยนไม่บ่อย — โหลดครั้งเดียวตอนเข้าหน้า ไม่ต้อง poll ต่อเนื่อง
     return () => unsubs.forEach(u => u());
@@ -114,7 +154,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   // ถ้าแท็บปัจจุบันไม่อยู่ในสิทธิ์ของ user นี้ (เช่นสลับบัญชี) ให้สลับไปแท็บแรกที่มีสิทธิ์
   useEffect(() => {
     if (!isAdmin || allowedTabs.length === 0) return;
-    if (!allowedTabs.includes(tab)) setTab(allowedTabs[0] as Tab);
+    if (!hasTabPermission(tab)) setTab(allowedTabs[0] as Tab);
   }, [isAdmin, tab, allowedTabs.join(',')]);
 
   const handleSaveSettings = async () => {
@@ -129,6 +169,11 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
   const setHero = (key: string, val: string) =>
     setSiteSettings(s => ({ ...s, hero: { ...s.hero, [key]: val } }));
+  const setHeroTextStyle = (key: 'badge' | 'heading1' | 'heading2' | 'heading3' | 'description', field: keyof TextStyle, value: string | boolean) =>
+    setSiteSettings(s => ({
+      ...s,
+      hero: { ...s.hero, textStyle: { ...s.hero.textStyle, [key]: { ...s.hero.textStyle?.[key], [field]: value } } },
+    }));
   const setCta = (key: string, val: string) =>
     setSiteSettings(s => ({ ...s, cta: { ...s.cta, [key]: val } }));
   const setContactInfo = (key: string, val: string) =>
@@ -247,8 +292,9 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
         else if (tab === 'events') await updateEvent(item.id, { published });
         else if (tab === 'policies') await updatePolicy(item.id, { published });
         else if (tab === 'team') await updateTeamMember(item.id, { published });
+        else if (tab === 'homeBlocks') await updateHomeBlock(item.id, { published });
       }
-    } catch { alert('เกิดข้อผิดพลาดระหว่าง bulk update'); }
+    } catch (err: any) { alert(err?.message || 'เกิดข้อผิดพลาดระหว่าง bulk update'); }
     finally { setBulkLoading(false); }
   };
 
@@ -260,6 +306,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       else if (tab === 'events') await updateEvent(item.id, { published });
       else if (tab === 'policies') await updatePolicy(item.id, { published });
       else if (tab === 'team') await updateTeamMember(item.id, { published });
+      else if (tab === 'homeBlocks') await updateHomeBlock(item.id, { published });
     } catch (err: any) { alert(err?.message || 'เกิดข้อผิดพลาดระหว่างเปลี่ยนสถานะ'); }
     finally { setTogglingId(null); }
   };
@@ -287,10 +334,25 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     }
   };
 
+  const handleSeedHomeBlocks = async () => {
+    setSeedingHomeBlocks(true);
+    try {
+      for (const block of DEFAULT_HOME_BLOCKS) {
+        const { id, ...rest } = block;
+        await addHomeBlock(rest);
+      }
+    } catch {
+      alert('Seed ไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setSeedingHomeBlocks(false);
+    }
+  };
+
   const openAdd = () => {
     const emptyMap: Record<string, any> = {
       news: { ...EMPTY_NEWS }, events: { ...EMPTY_EVENT },
       policies: { ...EMPTY_POLICY }, team: { ...EMPTY_MEMBER },
+      homeBlocks: { ...EMPTY_PROMO_BLOCK, order: homeBlocks.length ? Math.max(...homeBlocks.map(b => b.order ?? 0)) + 1 : 0 },
     };
     setModal({ open: true, mode: 'add', data: emptyMap[tab], activeTab: tab });
   };
@@ -311,11 +373,13 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
         else if (savedTab === 'events') await addEvent(rest);
         else if (savedTab === 'policies') await addPolicy(rest);
         else if (savedTab === 'team') await addTeamMember(rest);
+        else if (savedTab === 'homeBlocks') await addHomeBlock(rest);
       } else {
         if (savedTab === 'news') await updateNews(id, rest);
         else if (savedTab === 'events') await updateEvent(id, rest);
         else if (savedTab === 'policies') await updatePolicy(id, rest);
         else if (savedTab === 'team') await updateTeamMember(id, rest);
+        else if (savedTab === 'homeBlocks') await updateHomeBlock(id, rest);
       }
       setModal({ open: false, mode: 'add', data: null, activeTab: savedTab });
       setTab(savedTab);
@@ -333,6 +397,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       else if (savedTab === 'events') await deleteEvent(id);
       else if (savedTab === 'policies') await deletePolicy(id);
       else if (savedTab === 'team') await deleteTeamMember(id);
+      else if (savedTab === 'homeBlocks') await deleteHomeBlock(id);
     } catch {
       alert('ลบไม่สำเร็จ กรุณาลองใหม่');
     } finally {
@@ -353,6 +418,9 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       if (savedTab === 'policies') {
         await updatePolicy(a.id, { order: bOrder });
         await updatePolicy(b.id, { order: aOrder });
+      } else if (savedTab === 'homeBlocks') {
+        await updateHomeBlock(a.id, { order: bOrder });
+        await updateHomeBlock(b.id, { order: aOrder });
       }
     } finally {
       setTab(savedTab);
@@ -364,6 +432,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     { key: 'events', label: 'กิจกรรม', icon: Calendar, count: events.length },
     { key: 'policies', label: 'นโยบาย', icon: BookOpen, count: policies.length },
     { key: 'team', label: 'ทีมพรรค', icon: Users, count: team.length },
+    { key: 'homeBlocks', label: 'หน้าแรก', icon: LayoutTemplate, count: homeBlocks.length },
     { key: 'newsletter', label: 'Newsletter', icon: Mail, count: newsletter.length },
     { key: 'contact', label: 'ข้อความ', icon: MessageSquare, count: contact.length },
     { key: 'volunteer', label: 'อาสาสมัคร', icon: Heart, count: volunteer.length },
@@ -371,12 +440,13 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     { key: 'settings', label: 'ตั้งค่าเว็บ', icon: Settings },
   ];
   // แสดงเฉพาะแท็บที่บัญชีนี้มีสิทธิ์ — แยกตามสิทธิ์ของ user (role/allowedTabs)
-  const TABS = ALL_TABS.filter(t => allowedTabs.includes(t.key));
+  const TABS = ALL_TABS.filter(t => hasTabPermission(t.key));
 
   const sortedPolicies = [...policies].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedCategories = [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  const currentData: Record<string, any[]> = { news, events, policies: sortedPolicies, team, newsletter, contact, volunteer };
-  const canEdit = ['news', 'events', 'policies', 'team'].includes(tab) && allowedTabs.includes(tab);
+  const sortedHomeBlocks = [...homeBlocks].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  const currentData: Record<string, any[]> = { news, events, policies: sortedPolicies, team, homeBlocks: sortedHomeBlocks, newsletter, contact, volunteer };
+  const canEdit = ['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && hasTabPermission(tab);
 
   const fieldConfig: Record<string, { key: string; label: string; type: string; maxLength?: number; options?: string[]; optionLabels?: string[] }[]> = {
     news: [
@@ -424,6 +494,16 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'category', label: 'ประเภท', type: 'select', options: ['chairman', 'leader', 'expert'], optionLabels: ['ประธานพรรค', 'ผู้นำพรรค', 'กรรมการบริหาร'] },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
       { key: 'featuredHome', label: 'แสดงในหน้าหลัก (เลือกได้สูงสุด 3 คน)', type: 'toggle' },
+    ],
+    homeBlocks: [
+      { key: 'title', label: 'หัวข้อ', type: 'text', maxLength: 200 },
+      { key: 'description', label: 'รายละเอียด', type: 'textarea', maxLength: 500 },
+      { key: 'image', label: 'รูปภาพ', type: 'image-upload' },
+      { key: 'link', label: 'ลิงก์ปลายทาง', type: 'text' },
+      { key: 'buttonText', label: 'ข้อความปุ่ม', type: 'text', maxLength: 50 },
+      { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
+      { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+      { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
     ],
   };
 
@@ -520,18 +600,90 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   { key: 'buttonSecondary', label: 'ปุ่มรอง' },
                   { key: 'leaderName', label: 'ชื่อหัวหน้าพรรค' },
                   { key: 'leaderTitle', label: 'ตำแหน่ง' },
-                ].map(f => (
-                  <div key={f.key}>
-                    <label className="block text-xs font-bold text-white/50 mb-1">{f.label}</label>
-                    <input type="text" value={(siteSettings.hero as any)[f.key]}
-                      onChange={e => setHero(f.key, e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
-                  </div>
-                ))}
+                ].map(f => {
+                  const styleKey = HERO_STYLE_KEYS.find(k => k === f.key);
+                  const linkKey = f.key === 'buttonPrimary' ? 'buttonPrimaryLink' : f.key === 'buttonSecondary' ? 'buttonSecondaryLink' : null;
+                  const linkDefault = f.key === 'buttonPrimary' ? '/policies' : '/team';
+                  return (
+                    <div key={f.key}>
+                      <label className="block text-xs font-bold text-white/50 mb-1">{f.label}</label>
+                      <input type="text" value={(siteSettings.hero as any)[f.key]}
+                        onChange={e => setHero(f.key, e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+
+                      {styleKey && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <select
+                            value={siteSettings.hero.textStyle?.[styleKey]?.fontSize || ''}
+                            onChange={e => setHeroTextStyle(styleKey, 'fontSize', e.target.value)}
+                            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 focus:outline-none focus:border-brand-neon"
+                          >
+                            {FONT_SIZE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                          <input
+                            type="color"
+                            value={siteSettings.hero.textStyle?.[styleKey]?.color || '#ffffff'}
+                            onChange={e => setHeroTextStyle(styleKey, 'color', e.target.value)}
+                            className="w-8 h-8 rounded-lg border border-white/20 cursor-pointer bg-transparent"
+                            title="สีข้อความ"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setHeroTextStyle(styleKey, 'visible', siteSettings.hero.textStyle?.[styleKey]?.visible === false)}
+                            className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                              siteSettings.hero.textStyle?.[styleKey]?.visible === false
+                                ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                                : 'bg-green-500/20 border-green-500/30 text-green-400'
+                            }`}
+                          >
+                            {siteSettings.hero.textStyle?.[styleKey]?.visible === false ? '● ซ่อน' : '● แสดง'}
+                          </button>
+                        </div>
+                      )}
+
+                      {linkKey && (
+                        <select
+                          value={(siteSettings.hero as any)[linkKey] || linkDefault}
+                          onChange={e => setHero(linkKey, e.target.value)}
+                          className="w-full mt-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white text-xs focus:outline-none focus:border-brand-neon transition-colors"
+                        >
+                          {HERO_LINK_OPTIONS.map(o => <option key={o.value} value={o.value}>ลิงก์ไปหน้า: {o.label}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  );
+                })}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-white/50 mb-1">คำอธิบาย</label>
                   <textarea value={siteSettings.hero.description} onChange={e => setHero('description', e.target.value)}
                     rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none" />
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <select
+                      value={siteSettings.hero.textStyle?.description?.fontSize || ''}
+                      onChange={e => setHeroTextStyle('description', 'fontSize', e.target.value)}
+                      className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white/70 focus:outline-none focus:border-brand-neon"
+                    >
+                      {FONT_SIZE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    <input
+                      type="color"
+                      value={siteSettings.hero.textStyle?.description?.color || '#ffffff'}
+                      onChange={e => setHeroTextStyle('description', 'color', e.target.value)}
+                      className="w-8 h-8 rounded-lg border border-white/20 cursor-pointer bg-transparent"
+                      title="สีข้อความ"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setHeroTextStyle('description', 'visible', siteSettings.hero.textStyle?.description?.visible === false)}
+                      className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                        siteSettings.hero.textStyle?.description?.visible === false
+                          ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                          : 'bg-green-500/20 border-green-500/30 text-green-400'
+                      }`}
+                    >
+                      {siteSettings.hero.textStyle?.description?.visible === false ? '● ซ่อน' : '● แสดง'}
+                    </button>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-white/50 mb-1">รูปหัวหน้าพรรค</label>
@@ -1014,7 +1166,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
               </h2>
               <div className="flex flex-wrap gap-2 items-center">
                 {/* Bulk publish/unpublish */}
-                {['news', 'events', 'policies', 'team'].includes(tab) && (
+                {['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && (
                   <>
                     <button onClick={() => handleBulkToggle(true)} disabled={bulkLoading}
                       className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all disabled:opacity-50">
@@ -1095,7 +1247,21 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
             )}
 
             <div className="space-y-4">
-              {currentData[tab].length === 0 && (
+              {currentData[tab].length === 0 && tab === 'homeBlocks' && (
+                <div className="text-center py-12">
+                  <p className="text-white/30 mb-4">ยังไม่มีข้อมูลลำดับหน้าแรก — กดปุ่มด้านล่างเพื่อสร้างแถวเริ่มต้นจาก 5 ส่วนที่ใช้อยู่ตอนนี้ (Hero/นโยบาย/ทีมพรรค/ข่าวสาร/CTA)</p>
+                  {canEdit && (
+                    <button
+                      onClick={handleSeedHomeBlocks} disabled={seedingHomeBlocks}
+                      className="neon-button mx-auto disabled:opacity-50"
+                    >
+                      <Database size={18} className={seedingHomeBlocks ? 'animate-spin' : ''} />
+                      {seedingHomeBlocks ? 'กำลัง Seed...' : 'Seed ลำดับหน้าแรกเริ่มต้น'}
+                    </button>
+                  )}
+                </div>
+              )}
+              {currentData[tab].length === 0 && tab !== 'homeBlocks' && (
                 <p className="text-white/30 text-center py-12">ยังไม่มีข้อมูล — กด "Seed ข้อมูลตั้งต้น" หรือ "เพิ่มใหม่"</p>
               )}
               {currentData[tab].filter((item: any) => {
@@ -1109,7 +1275,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-lg truncate">
-                      {item.title || item.name || item.email || item.message?.slice(0, 60) || item.id}
+                      {(tab === 'homeBlocks' ? BLOCK_TYPE_LABELS[item.type] : null) || item.title || item.name || item.email || item.message?.slice(0, 60) || item.id}
                     </p>
                     <p className="text-white/40 text-sm mt-1 truncate">
                       {item.summary || item.description || item.bio || item.role || item.location || item.email || ''}
@@ -1120,7 +1286,14 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           {item.category || item.date}
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'team') && (
+                      {tab === 'homeBlocks' && (
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                          item.type === 'promo' ? 'bg-brand-neon/20 text-brand-neon' : 'bg-white/10 text-white/40'
+                        }`}>
+                          {item.type === 'promo' ? 'โปรโมท' : 'ส่วนหลัก (ลบไม่ได้)'}
+                        </span>
+                      )}
+                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'team' || tab === 'homeBlocks') && (
                         canEdit ? (
                           <button
                             type="button"
@@ -1148,18 +1321,18 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           ★ หน้าหลัก
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'events' || tab === 'policies') && item.publishAt && (
+                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.publishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           เริ่ม {new Date(item.publishAt).toLocaleDateString('th-TH')}
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'events' || tab === 'policies') && item.unpublishAt && (
+                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.unpublishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           หมด {new Date(item.unpublishAt).toLocaleDateString('th-TH')}
                         </span>
                       )}
                     </div>
-                    {(item.createdBy || item.updatedBy) && ['news', 'events', 'policies', 'team'].includes(tab) && (
+                    {(item.createdBy || item.updatedBy) && ['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && (
                       <p className="text-white/25 text-xs mt-2">
                         {item.createdBy && <>สร้างโดย {item.createdBy}</>}
                         {item.updatedBy && item.updatedBy !== item.createdBy && <> · แก้ไขล่าสุดโดย {item.updatedBy}</>}
@@ -1168,7 +1341,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </div>
                   {canEdit && (
                     <div className="flex gap-2 shrink-0">
-                      {tab === 'policies' && (
+                      {(tab === 'policies' || tab === 'homeBlocks') && (
                         <div className="flex flex-col gap-1">
                           <button
                             onClick={() => handleReorder(currentData[tab], index, 'up')}
@@ -1186,12 +1359,16 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           </button>
                         </div>
                       )}
-                      <button onClick={() => openEdit(item)} className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all">
-                        <Pencil size={15} />
-                      </button>
-                      <button onClick={() => setDeleteTarget(item.id)} className="w-9 h-9 rounded-xl border border-red-500/30 flex items-center justify-center hover:bg-red-500/10 transition-all text-red-400">
-                        <Trash2 size={15} />
-                      </button>
+                      {(tab !== 'homeBlocks' || item.type === 'promo') && (
+                        <>
+                          <button onClick={() => openEdit(item)} className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all">
+                            <Pencil size={15} />
+                          </button>
+                          <button onClick={() => setDeleteTarget(item.id)} className="w-9 h-9 rounded-xl border border-red-500/30 flex items-center justify-center hover:bg-red-500/10 transition-all text-red-400">
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
