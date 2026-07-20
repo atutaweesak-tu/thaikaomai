@@ -10,3 +10,12 @@ services:
       - ./public/uploads:/app/public/uploads
       - ./.env:/app/.env:ro
     mem_limit: 1024m
+    networks:
+      - default
+      - appnet
+
+networks:
+  default: {}
+  appnet:
+    name: thaikaomai_appnet
+    external: true
