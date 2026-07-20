@@ -102,6 +102,12 @@ export interface TextStyle {
   visible?: boolean;
 }
 
+/** รูปสไลด์ Hero — ใส่ลิงก์ต่อรูปได้ (ไม่บังคับ), กดที่รูปตอนแสดงอยู่จะเปิดลิงก์นั้น */
+export interface HeroSlide {
+  image: string;
+  link?: string;
+}
+
 export interface SiteSettings {
   popup: PopupSettings;
   about: {
@@ -115,7 +121,8 @@ export interface SiteSettings {
     updatedAt: string;
   };
   hero: {
-    layout?: 'split' | 'full'; // split = ข้อความซ้าย/รูปขวา (เดิม), full = รูปเต็มพื้นที่ ข้อความซ้อนทับ — ไม่ตั้งค่า = split
+    // split = ข้อความซ้าย/รูปขวา (เดิม), full = รูปเต็มพื้นที่ ข้อความซ้อนทับ, imageOnly = รูปเต็มพื้นที่ ไม่มีข้อความเลย — ไม่ตั้งค่า = split
+    layout?: 'split' | 'full' | 'imageOnly';
     badge: string;
     heading1: string;
     heading2: string;
@@ -125,8 +132,10 @@ export interface SiteSettings {
     buttonSecondary: string;
     buttonPrimaryLink?: string;
     buttonSecondaryLink?: string;
-    leaderImage: string; // เก็บไว้เพื่อ backward-compat กับข้อมูลเก่า — ของใหม่ใช้ leaderImages แทน (สไลด์ได้หลายรูป)
-    leaderImages?: string[];
+    leaderImage: string; // เก็บไว้เพื่อ backward-compat กับข้อมูลเก่า — ของใหม่ใช้ slides แทน (สไลด์ได้หลายรูป + ลิงก์ต่อรูป)
+    leaderImages?: string[]; // เก็บไว้เพื่อ backward-compat เช่นกัน — ของใหม่ใช้ slides แทน
+    slides?: HeroSlide[]; // ใช้กับ layout 'split' — รูปควรเป็นสัดส่วนแนวตั้ง (การ์ด 4:5)
+    fullSlides?: HeroSlide[]; // ใช้กับ layout 'full'/'imageOnly' — รูปควรเป็นสัดส่วนเต็มจอ (กว้าง) แยกจาก slides เพราะสัดส่วนการครอปต่างกัน
     leaderName: string;
     leaderTitle: string;
     textStyle?: {
@@ -207,6 +216,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     buttonSecondaryLink: '/team',
     leaderImage: '',
     leaderImages: [],
+    slides: [],
+    fullSlides: [],
     leaderName: 'ดร.สุชัชวีร์ สุวรรณสวัสดิ์',
     leaderTitle: 'หัวหน้าพรรค',
     textStyle: {},

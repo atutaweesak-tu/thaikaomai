@@ -19,7 +19,7 @@ import {
   subscribeToHomeBlocks, addHomeBlock, updateHomeBlock, deleteHomeBlock,
   seedInitialData, getApiToken,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide } from '../types';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 
 type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings';
@@ -181,20 +181,40 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       ...s,
       hero: { ...s.hero, textStyle: { ...s.hero.textStyle, [key]: { ...s.hero.textStyle?.[key], [field]: value } } },
     }));
-  // รูปเดียวเดิม (leaderImage) เก็บไว้เป็น fallback — ถ้ายังไม่เคยเพิ่ม leaderImages เลย ให้ถือว่ารูปเดิมคือรูปแรกในสไลด์
-  const heroImages = siteSettings.hero.leaderImages?.length
-    ? siteSettings.hero.leaderImages
-    : (siteSettings.hero.leaderImage ? [siteSettings.hero.leaderImage] : []);
-  const setHeroImages = (images: string[]) =>
-    setSiteSettings(s => ({ ...s, hero: { ...s.hero, leaderImages: images } }));
-  const addHeroImage = (url: string) => setHeroImages([...heroImages, url]);
-  const removeHeroImage = (index: number) => setHeroImages(heroImages.filter((_, i) => i !== index));
-  const moveHeroImage = (index: number, direction: 'up' | 'down') => {
+  // ลำดับ fallback เดียวกับ Hero.tsx: slides ใหม่ -> leaderImages เดิม -> leaderImage เดี่ยวเดิมสุด
+  // ใช้กับ layout 'split' — รูปควรเป็นสัดส่วนแนวตั้ง (การ์ด 4:5)
+  const heroSplitSlides: HeroSlide[] = siteSettings.hero.slides?.length
+    ? siteSettings.hero.slides
+    : siteSettings.hero.leaderImages?.length
+      ? siteSettings.hero.leaderImages.map(image => ({ image }))
+      : siteSettings.hero.leaderImage ? [{ image: siteSettings.hero.leaderImage }] : [];
+  const setHeroSplitSlides = (slides: HeroSlide[]) =>
+    setSiteSettings(s => ({ ...s, hero: { ...s.hero, slides } }));
+  const addHeroSplitSlide = (image: string) => setHeroSplitSlides([...heroSplitSlides, { image }]);
+  const removeHeroSplitSlide = (index: number) => setHeroSplitSlides(heroSplitSlides.filter((_, i) => i !== index));
+  const updateHeroSplitSlideLink = (index: number, link: string) =>
+    setHeroSplitSlides(heroSplitSlides.map((s, i) => (i === index ? { ...s, link } : s)));
+  const moveHeroSplitSlide = (index: number, direction: 'up' | 'down') => {
     const swapIndex = direction === 'up' ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= heroImages.length) return;
-    const next = [...heroImages];
+    if (swapIndex < 0 || swapIndex >= heroSplitSlides.length) return;
+    const next = [...heroSplitSlides];
     [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
-    setHeroImages(next);
+    setHeroSplitSlides(next);
+  };
+  // ใช้กับ layout 'full'/'imageOnly' — รูปควรเป็นสัดส่วนเต็มจอ แยกชุดจาก split เพราะการครอปต่างกัน
+  const heroFullSlides: HeroSlide[] = siteSettings.hero.fullSlides?.length ? siteSettings.hero.fullSlides : [];
+  const setHeroFullSlides = (slides: HeroSlide[]) =>
+    setSiteSettings(s => ({ ...s, hero: { ...s.hero, fullSlides: slides } }));
+  const addHeroFullSlide = (image: string) => setHeroFullSlides([...heroFullSlides, { image }]);
+  const removeHeroFullSlide = (index: number) => setHeroFullSlides(heroFullSlides.filter((_, i) => i !== index));
+  const updateHeroFullSlideLink = (index: number, link: string) =>
+    setHeroFullSlides(heroFullSlides.map((s, i) => (i === index ? { ...s, link } : s)));
+  const moveHeroFullSlide = (index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= heroFullSlides.length) return;
+    const next = [...heroFullSlides];
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+    setHeroFullSlides(next);
   };
   const setCta = (key: string, val: string) =>
     setSiteSettings(s => ({ ...s, cta: { ...s.cta, [key]: val } }));
@@ -614,30 +634,31 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
               <h2 className="text-xl font-black mb-6 flex items-center gap-2"><span className="text-brand-neon">①</span> Hero Section</h2>
               <div className="mb-6">
                 <label className="block text-xs font-bold text-white/50 mb-2">รูปแบบ Hero Section</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setHero('layout', 'split')}
-                    className={`flex-1 text-sm font-bold px-4 py-3 rounded-xl border transition-colors ${
-                      (siteSettings.hero.layout ?? 'split') === 'split'
-                        ? 'bg-brand-neon/20 border-brand-neon text-brand-neon'
-                        : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
-                    }`}
-                  >
-                    2 คอลัมน์ (ข้อความ + รูป)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setHero('layout', 'full')}
-                    className={`flex-1 text-sm font-bold px-4 py-3 rounded-xl border transition-colors ${
-                      siteSettings.hero.layout === 'full'
-                        ? 'bg-brand-neon/20 border-brand-neon text-brand-neon'
-                        : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
-                    }`}
-                  >
-                    รูปเต็มพื้นที่ (ข้อความซ้อนทับ)
-                  </button>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'split', label: '2 คอลัมน์ (ข้อความ + รูป)' },
+                    { value: 'full', label: 'รูปเต็มพื้นที่ (ข้อความซ้อนทับ)' },
+                    { value: 'imageOnly', label: 'รูปเต็มพื้นที่ (ไม่มีข้อความ)' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setHero('layout', opt.value)}
+                      className={`flex-1 min-w-[9rem] text-sm font-bold px-4 py-3 rounded-xl border transition-colors ${
+                        (siteSettings.hero.layout ?? 'split') === opt.value
+                          ? 'bg-brand-neon/20 border-brand-neon text-brand-neon'
+                          : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
+                {siteSettings.hero.layout === 'imageOnly' && (
+                  <p className="text-white/40 text-xs mt-2">
+                    โหมดนี้จะไม่แสดงข้อความ/ปุ่มด้านล่างบนหน้าเว็บ — ยังตั้งค่าไว้ได้ตามปกติเผื่อสลับกลับมาใช้ภายหลัง
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {[
@@ -735,28 +756,40 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </div>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-white/50 mb-1">รูปหัวหน้าพรรค (เพิ่มได้หลายรูป — สไลด์เลื่อนอัตโนมัติถ้ามีมากกว่า 1 รูป)</label>
-                  <div className="flex flex-wrap gap-3 mb-3">
-                    {heroImages.map((img, i) => (
-                      <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/20 group shrink-0">
-                        <img src={img} alt={`รูปที่ ${i + 1}`} className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeHeroImage(i)}
-                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X size={12} />
-                        </button>
-                        <div className="absolute bottom-1 left-1 right-1 flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button type="button" disabled={i === 0} onClick={() => moveHeroImage(i, 'up')}
-                            className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center disabled:opacity-30">
+                  <label className="block text-xs font-bold text-white/50 mb-1">
+                    รูปสำหรับ "2 คอลัมน์" — เพิ่มได้ไม่จำกัด สไลด์อัตโนมัติถ้ามีมากกว่า 1 รูป ใส่ลิงก์ต่อรูปได้
+                  </label>
+                  <p className="text-brand-neon/70 text-xs mb-2">
+                    ขนาดรูปที่แนะนำ: 1000 × 1250 px (แนวตั้ง อัตราส่วน 4:5) — ให้คนตัดรูปเว้นระยะขอบไว้บ้าง เผื่อจอบางขนาดครอปภาพเข้ามาอีกนิด
+                  </p>
+                  <div className="space-y-2 mb-3">
+                    {heroSplitSlides.map((s, i) => (
+                      <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-2">
+                        <img src={s.image} alt={`รูปที่ ${i + 1}`} className="w-14 h-14 rounded-lg object-cover border border-white/10 shrink-0" />
+                        <input
+                          type="text"
+                          value={s.link || ''}
+                          onChange={e => updateHeroSplitSlideLink(i, e.target.value)}
+                          placeholder="ลิงก์ (ไม่บังคับ) เช่น https://..."
+                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-neon transition-colors"
+                        />
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <button type="button" disabled={i === 0} onClick={() => moveHeroSplitSlide(i, 'up')}
+                            className="w-6 h-4 rounded bg-white/10 text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/20">
                             <ChevronUp size={11} />
                           </button>
-                          <button type="button" disabled={i === heroImages.length - 1} onClick={() => moveHeroImage(i, 'down')}
-                            className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center disabled:opacity-30">
+                          <button type="button" disabled={i === heroSplitSlides.length - 1} onClick={() => moveHeroSplitSlide(i, 'down')}
+                            className="w-6 h-4 rounded bg-white/10 text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/20">
                             <ChevronDown size={11} />
                           </button>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => removeHeroSplitSlide(i)}
+                          className="w-8 h-8 rounded-lg border border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/10 transition-colors shrink-0"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -765,7 +798,58 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                     <input type="file" accept="image/*" className="hidden" onChange={async e => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      try { addHeroImage(await uploadImage(file)); }
+                      try { addHeroSplitSlide(await uploadImage(file)); }
+                      catch (err) { alert(String(err)); }
+                    }} />
+                  </label>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold text-white/50 mb-1">
+                    รูปสำหรับ "รูปเต็มพื้นที่" — แยกจากชุดด้านบนเพราะสัดส่วนการครอปต่างกัน ใส่ลิงก์ต่อรูปได้
+                  </label>
+                  <p className="text-brand-neon/70 text-xs mb-2">
+                    ขนาดรูปที่แนะนำ: 1920 × 1080 px ขึ้นไป (แนวนอน กว้างเต็มจอ) — จัดองค์ประกอบสำคัญไว้กลางภาพ เพราะขอบซ้าย-ขวา/บน-ล่างอาจถูกครอปออกตามขนาดจอ
+                  </p>
+                  <div className="space-y-2 mb-3">
+                    {heroFullSlides.map((s, i) => (
+                      <div key={i} className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-2">
+                        <img src={s.image} alt={`รูปที่ ${i + 1}`} className="w-14 h-14 rounded-lg object-cover border border-white/10 shrink-0" />
+                        <input
+                          type="text"
+                          value={s.link || ''}
+                          onChange={e => updateHeroFullSlideLink(i, e.target.value)}
+                          placeholder="ลิงก์ (ไม่บังคับ) เช่น https://..."
+                          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-neon transition-colors"
+                        />
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <button type="button" disabled={i === 0} onClick={() => moveHeroFullSlide(i, 'up')}
+                            className="w-6 h-4 rounded bg-white/10 text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/20">
+                            <ChevronUp size={11} />
+                          </button>
+                          <button type="button" disabled={i === heroFullSlides.length - 1} onClick={() => moveHeroFullSlide(i, 'down')}
+                            className="w-6 h-4 rounded bg-white/10 text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/20">
+                            <ChevronDown size={11} />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeHeroFullSlide(i)}
+                          className="w-8 h-8 rounded-lg border border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/10 transition-colors shrink-0"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    {heroFullSlides.length === 0 && (
+                      <p className="text-white/30 text-xs">ยังไม่มีรูป — ตอนนี้ใช้ชุด "2 คอลัมน์" ด้านบนแทนไปก่อนสำหรับโหมดเต็มพื้นที่</p>
+                    )}
+                  </div>
+                  <label className="cursor-pointer inline-flex bg-white/10 hover:bg-brand-neon hover:text-brand-navy border border-white/20 rounded-xl px-4 py-2.5 text-sm font-bold transition-all whitespace-nowrap items-center gap-2">
+                    <Upload size={14} /> เพิ่มรูป
+                    <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try { addHeroFullSlide(await uploadImage(file)); }
                       catch (err) { alert(String(err)); }
                     }} />
                   </label>

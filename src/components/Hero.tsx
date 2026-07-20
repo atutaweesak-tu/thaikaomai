@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronRight, Play } from 'lucide-react';
 import { subscribeToSiteSettings } from '../services/dataService';
-import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { SiteSettings, DEFAULT_SETTINGS, HeroSlide } from '../types';
 
 const SLIDE_INTERVAL_MS = 5000;
 
@@ -18,18 +18,27 @@ export default function Hero() {
 
   const h = settings.hero;
   const isFull = h.layout === 'full';
-  // รูปเดียว (leaderImage) คือของเดิมก่อนมี carousel — เก็บไว้ให้ล้มเหลวปลอดภัยถ้ายังไม่ได้ตั้งค่า leaderImages ใหม่
-  const images = h.leaderImages && h.leaderImages.length > 0 ? h.leaderImages : (h.leaderImage ? [h.leaderImage] : []);
+  const isImageOnly = h.layout === 'imageOnly';
+  // ลำดับ fallback ของ split: slides ใหม่ (มีลิงก์ต่อรูปได้) -> leaderImages เดิม -> leaderImage เดี่ยวเดิมสุด
+  const splitSlides: HeroSlide[] = h.slides && h.slides.length > 0
+    ? h.slides
+    : h.leaderImages && h.leaderImages.length > 0
+      ? h.leaderImages.map(image => ({ image }))
+      : h.leaderImage ? [{ image: h.leaderImage }] : [];
+  // full/imageOnly ใช้ชุดรูปแยกต่างหาก (สัดส่วนเต็มจอ ต่างจาก split ที่เป็นการ์ดแนวตั้ง) —
+  // ถ้ายังไม่เคยตั้งค่า fullSlides เลย fallback ไปใช้ splitSlides ชั่วคราวแทนที่จะโชว์ว่างเปล่า
+  const fullSlides: HeroSlide[] = h.fullSlides && h.fullSlides.length > 0 ? h.fullSlides : splitSlides;
+  const slides: HeroSlide[] = (isFull || isImageOnly) ? fullSlides : splitSlides;
 
   useEffect(() => {
-    setSlide(s => (s >= images.length ? 0 : s));
-  }, [images.length]);
+    setSlide(s => (s >= slides.length ? 0 : s));
+  }, [slides.length]);
 
   useEffect(() => {
-    if (images.length < 2) return;
-    const timer = setInterval(() => setSlide(s => (s + 1) % images.length), SLIDE_INTERVAL_MS);
+    if (slides.length < 2) return;
+    const timer = setInterval(() => setSlide(s => (s + 1) % slides.length), SLIDE_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [images.length]);
+  }, [slides.length]);
 
   const headingLines = [
     { key: 'heading1' as const, text: h.heading1, extraClass: '' },
@@ -94,25 +103,38 @@ export default function Hero() {
     </motion.div>
   );
 
-  const carousel = images.length > 0 && (
+  const currentSlide = slides[slide];
+  const handleSlideClick = () => {
+    const link = currentSlide?.link;
+    if (!link) return;
+    try {
+      const url = new URL(link);
+      if (url.protocol === 'https:' || url.protocol === 'http:') {
+        window.open(link, '_blank', 'noopener,noreferrer');
+      }
+    } catch { /* invalid URL — ignore */ }
+  };
+
+  const carousel = slides.length > 0 && (
     <AnimatePresence mode="wait">
       <motion.img
         key={slide}
-        src={images[slide]}
+        src={currentSlide.image}
         alt={h.leaderName}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.8 }}
-        className="absolute inset-0 w-full h-full object-cover"
+        onClick={currentSlide.link ? handleSlideClick : undefined}
+        className={`absolute inset-0 w-full h-full object-cover ${currentSlide.link ? 'cursor-pointer' : ''}`}
         referrerPolicy="no-referrer"
       />
     </AnimatePresence>
   );
 
-  const dots = images.length > 1 && (
+  const dots = slides.length > 1 && (
     <div className="absolute top-4 right-4 z-10 flex gap-1.5">
-      {images.map((_, i) => (
+      {slides.map((_, i) => (
         <span
           key={i}
           className={`w-2 h-2 rounded-full transition-colors ${i === slide ? 'bg-brand-neon' : 'bg-white/30'}`}
@@ -120,6 +142,15 @@ export default function Hero() {
       ))}
     </div>
   );
+
+  if (h.layout === 'imageOnly') {
+    return (
+      <section className="relative min-h-screen overflow-hidden bg-brand-navy">
+        {carousel}
+        {dots}
+      </section>
+    );
+  }
 
   if (isFull) {
     return (
