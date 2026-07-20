@@ -70,6 +70,8 @@ const FONT_SIZE_OPTIONS = [
   { value: 'text-8xl', label: 'ใหญ่พิเศษ' },
 ];
 const HERO_STYLE_KEYS = ['badge', 'heading1', 'heading2', 'heading3'] as const;
+// เปิด/ปิดได้อย่างเดียว ไม่มีปรับขนาด/สี (ต่างจาก HERO_STYLE_KEYS)
+const HERO_VISIBILITY_ONLY_KEYS = ['buttonPrimary', 'buttonSecondary', 'leaderName', 'leaderTitle'] as const;
 const HERO_LINK_OPTIONS = [
   { value: '/', label: 'หน้าแรก' },
   { value: '/about', label: 'เกี่ยวกับพรรค' },
@@ -176,7 +178,11 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
   const setHero = (key: string, val: string) =>
     setSiteSettings(s => ({ ...s, hero: { ...s.hero, [key]: val } }));
-  const setHeroTextStyle = (key: 'badge' | 'heading1' | 'heading2' | 'heading3' | 'description', field: keyof TextStyle, value: string | boolean) =>
+  const setHeroTextStyle = (
+    key: 'badge' | 'heading1' | 'heading2' | 'heading3' | 'description' | 'buttonPrimary' | 'buttonSecondary' | 'leaderName' | 'leaderTitle',
+    field: keyof TextStyle,
+    value: string | boolean,
+  ) =>
     setSiteSettings(s => ({
       ...s,
       hero: { ...s.hero, textStyle: { ...s.hero.textStyle, [key]: { ...s.hero.textStyle?.[key], [field]: value } } },
@@ -672,6 +678,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   { key: 'leaderTitle', label: 'ตำแหน่ง' },
                 ].map(f => {
                   const styleKey = HERO_STYLE_KEYS.find(k => k === f.key);
+                  const visibilityOnlyKey = HERO_VISIBILITY_ONLY_KEYS.find(k => k === f.key);
                   const linkKey = f.key === 'buttonPrimary' ? 'buttonPrimaryLink' : f.key === 'buttonSecondary' ? 'buttonSecondaryLink' : null;
                   const linkDefault = f.key === 'buttonPrimary' ? '/policies' : '/team';
                   return (
@@ -719,6 +726,20 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                         >
                           {HERO_LINK_OPTIONS.map(o => <option key={o.value} value={o.value}>ลิงก์ไปหน้า: {o.label}</option>)}
                         </select>
+                      )}
+
+                      {visibilityOnlyKey && (
+                        <button
+                          type="button"
+                          onClick={() => setHeroTextStyle(visibilityOnlyKey, 'visible', siteSettings.hero.textStyle?.[visibilityOnlyKey]?.visible === false)}
+                          className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors mt-2 ${
+                            siteSettings.hero.textStyle?.[visibilityOnlyKey]?.visible === false
+                              ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                              : 'bg-green-500/20 border-green-500/30 text-green-400'
+                          }`}
+                        >
+                          {siteSettings.hero.textStyle?.[visibilityOnlyKey]?.visible === false ? '● ซ่อน' : '● แสดง'}
+                        </button>
                       )}
                     </div>
                   );

@@ -93,12 +93,16 @@ export default function Hero() {
       )}
 
       <div className="flex flex-wrap gap-4">
-        <Link to={h.buttonPrimaryLink || '/policies'} className="neon-button text-lg px-8 py-4">
-          {h.buttonPrimary} <ChevronRight />
-        </Link>
-        <Link to={h.buttonSecondaryLink || '/team'} className="outline-button text-lg px-8 py-4">
-          <Play size={20} fill="currentColor" /> {h.buttonSecondary}
-        </Link>
+        {h.textStyle?.buttonPrimary?.visible !== false && (
+          <Link to={h.buttonPrimaryLink || '/policies'} className="neon-button text-lg px-8 py-4">
+            {h.buttonPrimary} <ChevronRight />
+          </Link>
+        )}
+        {h.textStyle?.buttonSecondary?.visible !== false && (
+          <Link to={h.buttonSecondaryLink || '/team'} className="outline-button text-lg px-8 py-4">
+            <Play size={20} fill="currentColor" /> {h.buttonSecondary}
+          </Link>
+        )}
       </div>
     </motion.div>
   );
@@ -165,10 +169,14 @@ export default function Hero() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 pt-32 pb-20 w-full">
           <div className="max-w-2xl">
             {content}
-            {(h.leaderName || h.leaderTitle) && (
+            {((h.leaderName && h.textStyle?.leaderName?.visible !== false) || (h.leaderTitle && h.textStyle?.leaderTitle?.visible !== false)) && (
               <div className="mt-10 pt-8 border-t border-white/10">
-                <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-1">{h.leaderTitle}</p>
-                <h3 className="text-2xl font-black tracking-tighter">{h.leaderName}</h3>
+                {h.leaderTitle && h.textStyle?.leaderTitle?.visible !== false && (
+                  <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-1">{h.leaderTitle}</p>
+                )}
+                {h.leaderName && h.textStyle?.leaderName?.visible !== false && (
+                  <h3 className="text-2xl font-black tracking-tighter">{h.leaderName}</h3>
+                )}
               </div>
             )}
           </div>
@@ -196,8 +204,12 @@ export default function Hero() {
               {carousel}
               {dots}
               <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-brand-navy to-transparent z-10">
-                <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-2">{h.leaderTitle}</p>
-                <h3 className="text-3xl font-black tracking-tighter">{h.leaderName}</h3>
+                {h.leaderTitle && h.textStyle?.leaderTitle?.visible !== false && (
+                  <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-2">{h.leaderTitle}</p>
+                )}
+                {h.leaderName && h.textStyle?.leaderName?.visible !== false && (
+                  <h3 className="text-3xl font-black tracking-tighter">{h.leaderName}</h3>
+                )}
               </div>
             </div>
             <div className="absolute -top-6 -right-6 w-32 h-32 border-t-4 border-r-4 border-brand-neon rounded-tr-[40px]" />

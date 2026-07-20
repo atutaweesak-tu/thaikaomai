@@ -144,6 +144,11 @@ export interface SiteSettings {
       heading2?: TextStyle;
       heading3?: TextStyle;
       description?: TextStyle;
+      // อีก 4 อันนี้ใช้แค่ visible เท่านั้น (เปิด/ปิด) — fontSize/color ไม่ได้เปิดให้ตั้งค่าในหน้า admin
+      buttonPrimary?: TextStyle;
+      buttonSecondary?: TextStyle;
+      leaderName?: TextStyle;
+      leaderTitle?: TextStyle;
     };
   };
   cta: {
