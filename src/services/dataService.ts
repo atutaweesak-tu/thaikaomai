@@ -1,4 +1,4 @@
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount } from '../types';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 
@@ -150,6 +150,13 @@ export const subscribeToContact = (cb: (m: ContactMessage[]) => void) => subscri
 export const addVolunteer = (item: Omit<VolunteerItem, 'id'>) => apiAdd('volunteer', { ...item, submittedAt: new Date().toISOString() });
 export const subscribeToVolunteer = (cb: (v: VolunteerItem[]) => void) => subscribeToCollection<VolunteerItem>('volunteer', cb);
 export const deleteVolunteer = (id: string) => apiDelete('volunteer', id);
+
+// ─── ADMIN ACCOUNTS (users collection − จัดการบัญชีผู้ดูแลผ่าน UI, super_admin เท่านั้น) ─────
+
+export const subscribeToAdminAccounts = (cb: (u: AdminAccount[]) => void) => subscribeToCollection<AdminAccount>('users', cb);
+export const addAdminAccount = (account: Partial<AdminAccount> & { password: string }) => apiAdd('users', account);
+export const updateAdminAccount = (id: string, account: Partial<AdminAccount> & { password?: string }) => apiUpdate('users', id, account);
+export const deleteAdminAccount = (id: string) => apiDelete('users', id);
 
 // ─── SITE SETTINGS ────────────────────────────────────────────────────────────
 

@@ -87,6 +87,16 @@ export interface NewsletterSubscriber {
   subscribedAt: string;
 }
 
+/** บัญชีผู้ดูแลที่จัดการผ่าน UI (เก็บใน data/users.json) — แยกจากบัญชี .env (ADMIN_1..6)
+ *  ที่ยังเป็นชั้น bootstrap/fallback แบบ manual เหมือนเดิม ไม่มี passwordHash ที่นี่ — server ตัดออกก่อนส่งเสมอ */
+export interface AdminAccount extends AuditFields {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'super_admin';
+  allowedTabs: string[];
+}
+
 export interface PopupSettings {
   enabled: boolean;
   image: string;

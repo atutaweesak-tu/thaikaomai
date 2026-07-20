@@ -6,7 +6,9 @@ import type { ServerResponse, IncomingMessage } from 'http';
 import nodemailer from 'nodemailer';
 
 // ── Collections ที่เป็นข้อมูลส่วนบุคคล (PII) — อ่านได้เฉพาะ admin ที่ login แล้ว ─────
-const PROTECTED_READ_COLLECTIONS = new Set(['contact', 'volunteer', 'newsletter', 'users']);
+// หมายเหตุ: 'users' ไม่อยู่ในนี้แล้ว เพราะต้องการ requireTab('users') โดยเฉพาะ ไม่ใช่แค่ login
+// ธรรมดา (requireAuth) — ดู branch col === 'users' ใน data() แทน
+const PROTECTED_READ_COLLECTIONS = new Set(['contact', 'volunteer', 'newsletter']);
 // Collections ที่ใครก็ส่งฟอร์มเข้ามาได้โดยไม่ต้อง login (public forms)
 const PUBLIC_POST_COLLECTIONS = new Set(['contact', 'newsletter', 'volunteer']);
 
@@ -92,6 +94,13 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
+// ── Admin accounts (collection "users") ─────────────────────────────────────────
+// ตัด passwordHash ออกก่อนส่งให้ client เสมอ ไม่ว่าจะผ่าน GET/SSE/POST response ใดๆ
+function stripPasswordHash(item: any) {
+  const { passwordHash, ...rest } = item;
+  return rest;
+}
+
 // ── Session Store ──────────────────────────────────────────────────────────────
 interface Session { email: string; name: string; role: 'super_admin' | 'admin'; allowedTabs: string[]; expiresAt: number }
 const sessions = new Map<string, Session>();
@@ -155,6 +164,23 @@ function requireTab(req: IncomingMessage, res: ServerResponse, tab: string): boo
   return true;
 }
 
+// จัดการบัญชีผู้ดูแล (เพิ่ม/แก้/ลบ) ต้องเป็น super_admin เท่านั้น — ไม่ใช่แค่มีสิทธิ์แท็บ "ผู้ดูแล"
+// กันกรณี admin ธรรมดาที่ถูกให้สิทธิ์แท็บ users ผ่าน .env สร้าง/เลื่อนบัญชีตัวเองเป็น super_admin ได้
+function requireSuperAdmin(req: IncomingMessage, res: ServerResponse): boolean {
+  const session = getSession(req);
+  if (!session) {
+    res.statusCode = 401; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'กรุณาเข้าสู่ระบบก่อน' }));
+    return false;
+  }
+  if (session.role !== 'super_admin') {
+    res.statusCode = 403; res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'ต้องเป็น Super Admin เท่านั้นถึงจะจัดการบัญชีผู้ดูแลได้' }));
+    return false;
+  }
+  return true;
+}
+
 async function sendNotification(mailer: nodemailer.Transporter | null, env: Record<string, string>, subject: string, html: string) {
   if (!mailer || !env.SMTP_TO) return;
   try {
@@ -170,6 +196,25 @@ interface AdminUser { email: string; passwordHash: string; name: string; role: '
 // วัด response time แล้วเดาได้ว่าอีเมลนี้มีในระบบหรือไม่ (user enumeration) จึงต้องมี hash หลอกไว้
 // เทียบแทนเสมอตอนหาไม่เจอ ให้เวลาตอบใกล้เคียงกันไม่ว่าอีเมลจะมีอยู่จริงหรือไม่
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12);
+
+// ใช้ normalize role/allowedTabs ตอนสร้าง/แก้บัญชีผู้ดูแลผ่าน UI (collection "users") — super_admin
+// ได้ทุกแท็บเสมอ (เชื่อ client ไม่ได้), admin ที่ไม่ได้เลือกแท็บเลยได้ค่า default เหมือน .env-based account
+function normalizeAdminRoleTabs(role: any, allowedTabs: any): { role: 'admin' | 'super_admin'; allowedTabs: string[] } {
+  const normRole: 'admin' | 'super_admin' = role === 'super_admin' ? 'super_admin' : 'admin';
+  if (normRole === 'super_admin') return { role: normRole, allowedTabs: [...ALL_TABS] };
+  const filtered = Array.isArray(allowedTabs) ? allowedTabs.filter((t: any) => ALL_TABS.includes(t)) : [];
+  return { role: normRole, allowedTabs: filtered.length ? filtered : [...DEFAULT_ADMIN_TABS] };
+}
+
+// แปลงข้อมูลดิบจาก data/users.json (บัญชีที่สร้างผ่าน UI) ให้เป็นรูปแบบเดียวกับ AdminUser ที่มาจาก .env
+// ป้องกันแบบ defensive เผื่อไฟล์ถูกแก้มือจนข้อมูลผิดรูป (role/allowedTabs ไม่ใช่ค่าที่คาดไว้)
+function mapStoredToAdminUser(u: any): AdminUser {
+  const role: 'super_admin' | 'admin' = u.role === 'super_admin' ? 'super_admin' : 'admin';
+  const allowedTabs = Array.isArray(u.allowedTabs) && u.allowedTabs.length
+    ? u.allowedTabs
+    : (role === 'super_admin' ? ALL_TABS : DEFAULT_ADMIN_TABS);
+  return { email: String(u.email || ''), passwordHash: String(u.passwordHash || ''), name: String(u.name || ''), role, allowedTabs };
+}
 
 function loadAdminUsers(rawEnv: Record<string, string>): AdminUser[] {
   return [1, 2, 3, 4, 5, 6].map(i => {
@@ -208,8 +253,9 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
   const sseClients: Record<string, Set<ServerResponse>> = {};
 
   function broadcastCollection(col: string, items: any[]) {
+    const payload = col === 'users' ? items.map(stripPasswordHash) : items;
     sseClients[col]?.forEach(client => {
-      try { client.write(`data: ${JSON.stringify(items)}\n\n`); }
+      try { client.write(`data: ${JSON.stringify(payload)}\n\n`); }
       catch { sseClients[col].delete(client); }
     });
   }
@@ -262,7 +308,11 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
           return;
         }
 
-        const match = adminUsers.find(u => u.email.toLowerCase() === normalizedEmail);
+        // บัญชีจาก .env เช็คก่อนเสมอ (ชนะถ้าอีเมลซ้ำ) ต่อด้วยบัญชีที่สร้างผ่าน UI (data/users.json)
+        // อ่านไฟล์สดใหม่ทุกครั้งที่ login — ต่างจาก adminUsers (.env) ที่ cache ไว้ตอน server เริ่มทำงาน
+        // เพราะทั้งหมดของฟีเจอร์นี้คือให้เพิ่ม/แก้บัญชีได้โดยไม่ต้อง restart server
+        const jsonAdmins = readCollection('users').map(mapStoredToAdminUser);
+        const match = [...adminUsers, ...jsonAdmins].find(u => u.email.toLowerCase() === normalizedEmail);
         // เทียบ hash เสมอ (ของจริงถ้าเจอ, ของหลอกถ้าไม่เจอ) กัน timing side-channel — ดู DUMMY_PASSWORD_HASH ด้านบน
         const ok = await bcrypt.compare(String(password || ''), match ? match.passwordHash : DUMMY_PASSWORD_HASH);
 
@@ -413,13 +463,16 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
     const isProtected = PROTECTED_READ_COLLECTIONS.has(col);
 
     // SSE stream — collections ที่เป็น PII ต้อง auth ก่อนเปิด stream ด้วย
+    // "users" ต้องมีสิทธิ์แท็บ users โดยเฉพาะ (เข้มกว่า requireAuth ธรรมดา) และต้องตัด passwordHash ออกก่อนส่งเสมอ
     if (idOrStream === 'stream') {
-      if (isProtected && !requireAuth(req, res)) return;
+      if (col === 'users') { if (!requireTab(req, res, 'users')) return; }
+      else if (isProtected && !requireAuth(req, res)) return;
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
-      res.write(`data: ${JSON.stringify(readCollection(col))}\n\n`);
+      const initial = col === 'users' ? readCollection(col).map(stripPasswordHash) : readCollection(col);
+      res.write(`data: ${JSON.stringify(initial)}\n\n`);
       if (!sseClients[col]) sseClients[col] = new Set();
       sseClients[col].add(res);
       req.on('close', () => sseClients[col]?.delete(res));
@@ -434,17 +487,27 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
       res.statusCode = 204; res.end(); return;
     }
 
-    // GET — collections ที่เป็น PII (contact/volunteer/newsletter/users) ต้อง login ก่อนอ่าน
+    // GET — collections ที่เป็น PII (contact/volunteer/newsletter) ต้อง login ก่อนอ่าน
+    // "users" ต้องมีสิทธิ์แท็บ users โดยเฉพาะ และตัด passwordHash ออกก่อนส่งเสมอ
     if (req.method === 'GET') {
+      if (col === 'users') {
+        if (!requireTab(req, res, 'users')) return;
+        res.end(JSON.stringify(readCollection(col).map(stripPasswordHash))); return;
+      }
       if (isProtected && !requireAuth(req, res)) return;
       res.end(JSON.stringify(readCollection(col))); return;
     }
 
-    const tabForCol = COLLECTION_TAB[col];
-    // PUT / DELETE ต้อง auth + มีสิทธิ์แท็บของ collection นี้เสมอ
-    if ((req.method === 'PUT' || req.method === 'DELETE') && !(tabForCol ? requireTab(req, res, tabForCol) : requireAuth(req, res))) return;
-    // POST ต้อง auth + มีสิทธิ์แท็บ ยกเว้นฟอร์มสาธารณะ (contact / newsletter / volunteer)
-    if (req.method === 'POST' && !PUBLIC_POST_COLLECTIONS.has(col) && !(tabForCol ? requireTab(req, res, tabForCol) : requireAuth(req, res))) return;
+    if (col === 'users') {
+      // เพิ่ม/แก้/ลบบัญชีผู้ดูแล ต้องเป็น super_admin เท่านั้น ไม่ใช่แค่มีสิทธิ์แท็บ users (ดู requireSuperAdmin)
+      if ((req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') && !requireSuperAdmin(req, res)) return;
+    } else {
+      const tabForCol = COLLECTION_TAB[col];
+      // PUT / DELETE ต้อง auth + มีสิทธิ์แท็บของ collection นี้เสมอ
+      if ((req.method === 'PUT' || req.method === 'DELETE') && !(tabForCol ? requireTab(req, res, tabForCol) : requireAuth(req, res))) return;
+      // POST ต้อง auth + มีสิทธิ์แท็บ ยกเว้นฟอร์มสาธารณะ (contact / newsletter / volunteer)
+      if (req.method === 'POST' && !PUBLIC_POST_COLLECTIONS.has(col) && !(tabForCol ? requireTab(req, res, tabForCol) : requireAuth(req, res))) return;
+    }
 
     const session = getSession(req); // มีค่าเฉพาะ request ที่ login แล้ว — ใช้ประทับ audit trail
 
@@ -457,8 +520,27 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
         res.statusCode = 413; res.end('{"error":"Payload too large"}');
       }
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       if (res.writableEnded) return;
+
+      // "users": ต้อง hash รหัสผ่านแบบ async ก่อนเข้า runExclusive (sync) — parse body ล่วงหน้าที่นี่
+      let usersParsedBody: any = null;
+      let usersNewPasswordHash: string | undefined;
+      if (col === 'users' && (req.method === 'POST' || req.method === 'PUT')) {
+        try {
+          usersParsedBody = JSON.parse(body || '{}');
+        } catch {
+          res.statusCode = 400; res.end(JSON.stringify({ error: 'ข้อมูลไม่ถูกต้อง' })); return;
+        }
+        const password = usersParsedBody.password;
+        if (req.method === 'POST' || password) {
+          if (!password || String(password).length < 8) {
+            res.statusCode = 400; res.end(JSON.stringify({ error: 'กรุณาตั้งรหัสผ่านอย่างน้อย 8 ตัวอักษร' })); return;
+          }
+          usersNewPasswordHash = await bcrypt.hash(String(password), 12);
+        }
+      }
+
       runExclusive(col, () => {
       try {
         let items = readCollection(col);
@@ -471,8 +553,27 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
             return;
           }
 
-          const parsedBody = JSON.parse(body || '{}');
+          const parsedBody = col === 'users' ? usersParsedBody : JSON.parse(body || '{}');
           delete parsedBody.createdBy; delete parsedBody.updatedBy; delete parsedBody.createdAt; delete parsedBody.updatedAt;
+
+          if (col === 'users') {
+            const email = String(parsedBody.email || '').trim().toLowerCase();
+            if (!email || !parsedBody.name) {
+              res.statusCode = 400; res.end(JSON.stringify({ error: 'กรุณากรอกอีเมลและชื่อ' })); return;
+            }
+            const emailTaken = adminUsers.some(u => u.email.toLowerCase() === email)
+              || items.some((u: any) => String(u.email || '').toLowerCase() === email);
+            if (emailTaken) {
+              res.statusCode = 409; res.end(JSON.stringify({ error: 'อีเมลนี้มีบัญชีอยู่แล้ว' })); return;
+            }
+            const { role, allowedTabs } = normalizeAdminRoleTabs(parsedBody.role, parsedBody.allowedTabs);
+            delete parsedBody.password;
+            parsedBody.email = email;
+            parsedBody.role = role;
+            parsedBody.allowedTabs = allowedTabs;
+            parsedBody.passwordHash = usersNewPasswordHash;
+          }
+
           const nowIso = new Date().toISOString();
           const newItem = {
             ...parsedBody,
@@ -510,10 +611,10 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
           }
 
           res.statusCode = 201;
-          res.end(JSON.stringify(newItem));
+          res.end(JSON.stringify(col === 'users' ? stripPasswordHash(newItem) : newItem));
 
         } else if (req.method === 'PUT' && idOrStream) {
-          const update = JSON.parse(body || '{}');
+          const update = col === 'users' ? usersParsedBody : JSON.parse(body || '{}');
           delete update.createdBy; delete update.createdAt; delete update.updatedBy; delete update.updatedAt;
           const idx = items.findIndex((i: any) => i.id === idOrStream);
           if (idx < 0) {
@@ -523,6 +624,41 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
             res.end(JSON.stringify({ error: 'ไม่พบข้อมูลที่ต้องการแก้ไข (อาจถูกลบไปแล้วจากที่อื่น)' }));
             return;
           }
+
+          if (col === 'users') {
+            const target = items[idx];
+            const isSelf = !!session && String(target.email || '').toLowerCase() === session.email.toLowerCase();
+
+            if ('email' in update) {
+              const newEmail = String(update.email || '').trim().toLowerCase();
+              if (!newEmail) { res.statusCode = 400; res.end(JSON.stringify({ error: 'กรุณากรอกอีเมล' })); return; }
+              if (newEmail !== String(target.email || '').toLowerCase()) {
+                const emailTaken = adminUsers.some(u => u.email.toLowerCase() === newEmail)
+                  || items.some((u: any, i: number) => i !== idx && String(u.email || '').toLowerCase() === newEmail);
+                if (emailTaken) {
+                  res.statusCode = 409; res.end(JSON.stringify({ error: 'อีเมลนี้มีบัญชีอยู่แล้ว' })); return;
+                }
+              }
+              update.email = newEmail;
+            }
+
+            const effectiveRole = update.role !== undefined ? update.role : target.role;
+            const effectiveTabsInput = update.allowedTabs !== undefined ? update.allowedTabs : target.allowedTabs;
+            const { role, allowedTabs } = normalizeAdminRoleTabs(effectiveRole, effectiveTabsInput);
+
+            if (isSelf && (role !== 'super_admin' || !allowedTabs.includes('users'))) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'ไม่สามารถลดสิทธิ์หรือถอดสิทธิ์จัดการผู้ดูแลของบัญชีตัวเองได้' }));
+              return;
+            }
+
+            update.role = role;
+            update.allowedTabs = allowedTabs;
+            delete update.password;
+            if (usersNewPasswordHash) update.passwordHash = usersNewPasswordHash;
+            else delete update.passwordHash; // กันไม่ให้ client ส่ง passwordHash มาทับเองได้
+          }
+
           items[idx] = {
             ...items[idx], ...update,
             ...(session ? { updatedBy: session.email, updatedAt: new Date().toISOString() } : {}),
@@ -532,6 +668,14 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
           res.end('{"ok":true}');
 
         } else if (req.method === 'DELETE' && idOrStream) {
+          if (col === 'users' && session) {
+            const target = items.find((i: any) => i.id === idOrStream);
+            if (target && String(target.email || '').toLowerCase() === session.email.toLowerCase()) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'ไม่สามารถลบบัญชีของตัวเองได้' }));
+              return;
+            }
+          }
           items = items.filter((i: any) => i.id !== idOrStream);
           writeCollection(col, items);
           broadcastCollection(col, items);

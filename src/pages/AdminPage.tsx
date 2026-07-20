@@ -17,12 +17,17 @@ import {
   fetchSiteSettings, updateSiteSettings,
   fetchCategories, addCategory, deleteCategory,
   subscribeToHomeBlocks, addHomeBlock, updateHomeBlock, deleteHomeBlock,
+  subscribeToAdminAccounts, addAdminAccount, updateAdminAccount, deleteAdminAccount,
   seedInitialData, getApiToken,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount } from '../types';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 
 type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings';
+
+// ค่า default ของแท็บที่ admin ธรรมดา (role='admin') ได้ ถ้าตอนสร้างบัญชีไม่ได้เลือกแท็บเอง —
+// ตรงกับ DEFAULT_ADMIN_TABS ฝั่ง server (server/api.ts) คือทุกแท็บยกเว้น users/settings
+const DEFAULT_ADMIN_TABS_CLIENT: Tab[] = ['news', 'events', 'policies', 'team', 'newsletter', 'contact', 'volunteer'];
 
 // จัดกลุ่มแท็บให้เห็นเป็นหมวดหมู่ชัดเจนในแถบเมนู — ไม่กระทบ logic ด้านใน แค่จัดการแสดงผล
 const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
@@ -110,6 +115,11 @@ export default function AdminPage() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [homeBlocks, setHomeBlocks] = useState<PageBlock[]>([]);
   const [seedingHomeBlocks, setSeedingHomeBlocks] = useState(false);
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>([]);
+  const [adminModal, setAdminModal] = useState<{ open: boolean; mode: 'add' | 'edit'; data: Partial<AdminAccount> & { password?: string } }>({ open: false, mode: 'add', data: {} });
+  const [savingAdmin, setSavingAdmin] = useState(false);
+  const [adminSaveError, setAdminSaveError] = useState('');
+  const [deleteAdminTarget, setDeleteAdminTarget] = useState<string | null>(null);
 const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -148,12 +158,15 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       subscribeToVolunteer(setVolunteer),
       subscribeToHomeBlocks(setHomeBlocks),
     ];
+    // จัดการบัญชีผู้ดูแลได้เฉพาะ super_admin — ไม่ subscribe/เรียก API เลยถ้าไม่ใช่ (server ก็บังคับอยู่แล้ว
+    // แต่ฝั่ง UI ไม่จำเป็นต้องยิง request ไปให้เสียเวลาถ้ารู้อยู่แล้วว่าจะไม่แสดงผล)
+    if (isSuperAdmin) unsubs.push(subscribeToAdminAccounts(setAdminAccounts));
     reloadCategories(); // หมวดหมู่เปลี่ยนไม่บ่อย — โหลดครั้งเดียวตอนเข้าหน้า ไม่ต้อง poll ต่อเนื่อง
     // settings ก็โหลดครั้งเดียวเช่นกัน (ไม่ live-subscribe) — ป้องกัน draft ที่ยังไม่ได้บันทึกโดนโพลลิ่ง
     // เขียนทับกลับเป็นค่าเดิมกลางคัน ถ้า SSE หลุดแล้ว fallback ไป poll ทุก 3 วิ (ดู fetchSiteSettings)
     fetchSiteSettings().then(setSiteSettings);
     return () => unsubs.forEach(u => u());
-  }, [isAdmin]);
+  }, [isAdmin, isSuperAdmin]);
 
   // ถ้าแท็บปัจจุบันไม่อยู่ในสิทธิ์ของ user นี้ (เช่นสลับบัญชี) ให้สลับไปแท็บแรกที่มีสิทธิ์
   useEffect(() => {
@@ -396,6 +409,45 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     }
   };
 
+  const openAddAdmin = () => {
+    setAdminSaveError('');
+    setAdminModal({ open: true, mode: 'add', data: { role: 'admin', allowedTabs: DEFAULT_ADMIN_TABS_CLIENT } });
+  };
+
+  const openEditAdmin = (acc: AdminAccount) => {
+    setAdminSaveError('');
+    setAdminModal({ open: true, mode: 'edit', data: { ...acc, password: '' } });
+  };
+
+  const handleSaveAdmin = async () => {
+    setSavingAdmin(true);
+    setAdminSaveError('');
+    try {
+      const { id, password, ...rest } = adminModal.data;
+      const payload = password ? { ...rest, password } : rest;
+      if (adminModal.mode === 'add') {
+        await addAdminAccount(payload as Partial<AdminAccount> & { password: string });
+      } else if (id) {
+        await updateAdminAccount(id, payload);
+      }
+      setAdminModal({ open: false, mode: 'add', data: {} });
+    } catch (err: any) {
+      setAdminSaveError(err?.message || 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSavingAdmin(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (id: string) => {
+    try {
+      await deleteAdminAccount(id);
+    } catch (err: any) {
+      alert(err?.message || 'ลบไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setDeleteAdminTarget(null);
+    }
+  };
+
   const openAdd = () => {
     const emptyMap: Record<string, any> = {
       news: { ...EMPTY_NEWS }, events: { ...EMPTY_EVENT },
@@ -489,6 +541,9 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   ];
   // แสดงเฉพาะแท็บที่บัญชีนี้มีสิทธิ์ — แยกตามสิทธิ์ของ user (role/allowedTabs)
   const TABS = ALL_TABS.filter(t => hasTabPermission(t.key));
+  // ใช้เลือกสิทธิ์แท็บตอนสร้าง/แก้บัญชีผู้ดูแล — ตัด homeBlocks ออกเพราะไม่ใช่แท็บสิทธิ์จริงฝั่ง server
+  // (homeBlocks map ไปที่สิทธิ์ 'settings' ผ่าน TAB_PERMISSION ด้านบน ไม่ใช่ key สิทธิ์ของตัวเอง)
+  const ADMIN_PERMISSION_TABS = ALL_TABS.filter(t => t.key !== 'homeBlocks');
 
   const sortedPolicies = [...policies].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedCategories = [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
@@ -1262,66 +1317,125 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
           </div>
 
         ) : tab === 'users' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            {/* How to add admins */}
-            <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
-              <h2 className="text-xl font-black mb-4 flex items-center gap-2">
-                <UserPlus size={20} className="text-brand-neon" /> การจัดการผู้ดูแล
-              </h2>
-              <p className="text-white/50 text-sm leading-relaxed mb-4">
-                บัญชีผู้ดูแลระบบจัดการผ่านไฟล์ <code className="bg-white/10 px-1 rounded">.env</code> บนเซิร์ฟเวอร์ ไม่สามารถเพิ่มหรือลบจากหน้านี้ได้โดยตรง
-              </p>
-              <div className="bg-brand-neon/5 border border-brand-neon/20 rounded-2xl p-4 text-sm">
-                <p className="font-bold text-brand-neon mb-2">วิธีเพิ่มผู้ดูแลใหม่</p>
-                <ol className="text-white/60 space-y-1 list-decimal list-inside text-xs leading-relaxed">
-                  <li>เปิดไฟล์ <code className="bg-white/10 px-1 rounded">.env</code></li>
-                  <li>เพิ่มบรรทัดใหม่ต่อจาก admin คนล่าสุด เช่น <code className="bg-white/10 px-1 rounded">ADMIN_3_*</code></li>
-                  <li>ตั้งค่า <code className="bg-white/10 px-1 rounded">ADMIN_3_EMAIL</code>, <code className="bg-white/10 px-1 rounded">ADMIN_3_PASSWORD_HASH</code>, <code className="bg-white/10 px-1 rounded">ADMIN_3_NAME</code></li>
-                  <li>
-                    (ไม่บังคับ) กำหนดสิทธิ์: <code className="bg-white/10 px-1 rounded">ADMIN_3_ROLE=admin</code> และ{' '}
-                    <code className="bg-white/10 px-1 rounded">ADMIN_3_TABS=news,events</code> เพื่อจำกัดให้จัดการได้แค่บางแท็บ —
-                    ถ้าไม่ตั้ง จะได้สิทธิ์ทุกแท็บยกเว้น "ตั้งค่าเว็บ" และ "ผู้ดูแล"
-                  </li>
-                  <li>Restart เซิร์ฟเวอร์</li>
-                </ol>
-              </div>
-            </div>
-
-            {/* Current user */}
-            <div className="lg:col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-8">
-              <h2 className="text-xl font-black mb-6">เซสชันปัจจุบัน</h2>
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-4 mb-4"
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-brand-neon/10 text-brand-neon">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-bold truncate">{user?.displayName || user?.email}</p>
-                    <p className="text-white/40 text-xs truncate">{user?.email}</p>
-                  </div>
+              {/* .env accounts — bootstrap/fallback layer, unchanged */}
+              <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
+                <h2 className="text-xl font-black mb-4 flex items-center gap-2">
+                  <UserPlus size={20} className="text-brand-neon" /> บัญชี .env (สำรอง)
+                </h2>
+                <p className="text-white/50 text-sm leading-relaxed mb-4">
+                  บัญชีชุดนี้ตั้งค่าผ่านไฟล์ <code className="bg-white/10 px-1 rounded">.env</code> บนเซิร์ฟเวอร์โดยตรง เป็นชั้นสำรองที่ยังต้องแก้มือ +
+                  restart เซิร์ฟเวอร์เหมือนเดิม แยกต่างหากจากบัญชีที่จัดการผ่านหน้านี้ด้านล่าง
+                </p>
+                <div className="bg-brand-neon/5 border border-brand-neon/20 rounded-2xl p-4 text-sm">
+                  <p className="font-bold text-brand-neon mb-2">วิธีเพิ่มผู้ดูแลใหม่แบบ .env</p>
+                  <ol className="text-white/60 space-y-1 list-decimal list-inside text-xs leading-relaxed">
+                    <li>เปิดไฟล์ <code className="bg-white/10 px-1 rounded">.env</code></li>
+                    <li>เพิ่มบรรทัดใหม่ต่อจาก admin คนล่าสุด เช่น <code className="bg-white/10 px-1 rounded">ADMIN_3_*</code></li>
+                    <li>ตั้งค่า <code className="bg-white/10 px-1 rounded">ADMIN_3_EMAIL</code>, <code className="bg-white/10 px-1 rounded">ADMIN_3_PASSWORD_HASH</code>, <code className="bg-white/10 px-1 rounded">ADMIN_3_NAME</code></li>
+                    <li>Restart เซิร์ฟเวอร์</li>
+                  </ol>
                 </div>
-                <span className="text-xs font-black px-3 py-1 rounded-full bg-brand-neon/10 text-brand-neon shrink-0">
-                  {isSuperAdmin ? 'SUPER ADMIN' : 'ADMIN'}
-                </span>
-              </motion.div>
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                <p className="text-xs font-bold text-white/40 mb-2">แท็บที่บัญชีนี้มีสิทธิ์จัดการ</p>
-                <div className="flex flex-wrap gap-2">
-                  {ALL_TABS.map(t => (
-                    <span key={t.key} className={`text-xs font-bold px-3 py-1 rounded-full ${
-                      allowedTabs.includes(t.key) ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/25'
-                    }`}>
-                      {t.label}
-                    </span>
-                  ))}
+              </div>
+
+              {/* Current user */}
+              <div className="lg:col-span-2 bg-white/5 border border-white/10 rounded-[32px] p-8">
+                <h2 className="text-xl font-black mb-6">เซสชันปัจจุบัน</h2>
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-4 mb-4"
+                >
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-brand-neon/10 text-brand-neon">
+                      <ShieldCheck size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold truncate">{user?.displayName || user?.email}</p>
+                      <p className="text-white/40 text-xs truncate">{user?.email}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black px-3 py-1 rounded-full bg-brand-neon/10 text-brand-neon shrink-0">
+                    {isSuperAdmin ? 'SUPER ADMIN' : 'ADMIN'}
+                  </span>
+                </motion.div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-white/40 mb-2">แท็บที่บัญชีนี้มีสิทธิ์จัดการ</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_TABS.map(t => (
+                      <span key={t.key} className={`text-xs font-bold px-3 py-1 rounded-full ${
+                        allowedTabs.includes(t.key) ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/25'
+                      }`}>
+                        {t.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* UI-managed admin accounts — super_admin only, both client-gated here and server-enforced */}
+            {isSuperAdmin && (
+              <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-black flex items-center gap-2">
+                    <UserPlus size={20} className="text-brand-neon" /> จัดการบัญชีผู้ดูแล (ผ่านหน้านี้)
+                  </h2>
+                  <button onClick={openAddAdmin} className="neon-button">
+                    <Plus size={18} /> เพิ่มผู้ดูแลใหม่
+                  </button>
+                </div>
+                {adminAccounts.length === 0 && (
+                  <p className="text-white/30 text-center py-12">ยังไม่มีบัญชีที่สร้างผ่านหน้านี้ — กด "เพิ่มผู้ดูแลใหม่"</p>
+                )}
+                <div className="space-y-3">
+                  {adminAccounts.map(acc => {
+                    const isSelf = user?.email?.toLowerCase() === acc.email.toLowerCase();
+                    return (
+                      <div key={acc.id} className="flex items-start justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-5">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-lg truncate">{acc.name} {isSelf && <span className="text-white/30 text-xs font-normal">(คุณ)</span>}</p>
+                          <p className="text-white/40 text-sm mt-1 truncate">{acc.email}</p>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                              acc.role === 'super_admin' ? 'bg-brand-neon/20 text-brand-neon' : 'bg-white/10 text-white/50'
+                            }`}>
+                              {acc.role === 'super_admin' ? 'SUPER ADMIN' : 'ADMIN'}
+                            </span>
+                            {acc.role === 'super_admin' ? (
+                              <span className="text-xs font-bold px-3 py-1 rounded-full bg-green-500/15 text-green-400">ทุกแท็บ</span>
+                            ) : (
+                              ADMIN_PERMISSION_TABS.map(t => (
+                                <span key={t.key} className={`text-xs font-bold px-3 py-1 rounded-full ${
+                                  acc.allowedTabs.includes(t.key) ? 'bg-green-500/15 text-green-400' : 'bg-white/5 text-white/25'
+                                }`}>
+                                  {t.label}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={() => openEditAdmin(acc)} className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all">
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => !isSelf && setDeleteAdminTarget(acc.id)}
+                            disabled={isSelf}
+                            title={isSelf ? 'ลบบัญชีตัวเองไม่ได้' : undefined}
+                            className="w-9 h-9 rounded-xl border border-red-500/30 flex items-center justify-center hover:bg-red-500/10 transition-all text-red-400 disabled:opacity-20 disabled:hover:bg-transparent"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
         ) : (
@@ -1714,6 +1828,137 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 ลบเลย
               </button>
               <button onClick={() => setDeleteTarget(null)} className="outline-button flex-1 justify-center">
+                ยกเลิก
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Admin account Add/Edit Modal */}
+      {adminModal.open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-brand-navy border border-white/10 rounded-t-[32px] sm:rounded-[32px] w-full max-w-lg flex flex-col max-h-[92dvh] sm:max-h-[90vh]"
+          >
+            <div className="flex justify-between items-center px-8 pt-8 pb-4 shrink-0">
+              <h3 className="text-2xl font-black">{adminModal.mode === 'add' ? 'เพิ่มผู้ดูแลใหม่' : 'แก้ไขผู้ดูแล'}</h3>
+              <button onClick={() => setAdminModal({ open: false, mode: 'add', data: {} })} className="text-white/40 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-8 pb-2">
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">อีเมล</label>
+                  <input
+                    type="email"
+                    value={adminModal.data.email || ''}
+                    onChange={e => setAdminModal(m => ({ ...m, data: { ...m.data, email: e.target.value } }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">ชื่อ</label>
+                  <input
+                    type="text"
+                    value={adminModal.data.name || ''}
+                    onChange={e => setAdminModal(m => ({ ...m, data: { ...m.data, name: e.target.value } }))}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">
+                    รหัสผ่าน {adminModal.mode === 'edit' && '(เว้นว่างไว้ถ้าไม่เปลี่ยน)'}
+                  </label>
+                  <input
+                    type="password"
+                    value={adminModal.data.password || ''}
+                    onChange={e => setAdminModal(m => ({ ...m, data: { ...m.data, password: e.target.value } }))}
+                    placeholder="อย่างน้อย 8 ตัวอักษร"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">สิทธิ์</label>
+                  <div className="flex gap-2">
+                    {(['admin', 'super_admin'] as const).map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setAdminModal(m => ({
+                          ...m,
+                          data: { ...m.data, role: r, allowedTabs: r === 'super_admin' ? ADMIN_PERMISSION_TABS.map(t => t.key) : (m.data.allowedTabs?.length ? m.data.allowedTabs : DEFAULT_ADMIN_TABS_CLIENT) },
+                        }))}
+                        className={`flex-1 text-sm font-bold px-4 py-3 rounded-xl border transition-colors ${
+                          (adminModal.data.role || 'admin') === r
+                            ? 'bg-brand-neon/20 border-brand-neon text-brand-neon'
+                            : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        {r === 'super_admin' ? 'Super Admin' : 'Admin'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {adminModal.data.role === 'super_admin' ? (
+                  <p className="text-white/40 text-sm bg-white/5 border border-white/10 rounded-2xl px-5 py-3">ทุกแท็บ (Super Admin)</p>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-bold text-white/60 mb-2">แท็บที่จัดการได้</label>
+                    <div className="flex flex-wrap gap-2">
+                      {ADMIN_PERMISSION_TABS.map(t => {
+                        const checked = (adminModal.data.allowedTabs || []).includes(t.key);
+                        return (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() => setAdminModal(m => {
+                              const cur = m.data.allowedTabs || [];
+                              const next = cur.includes(t.key) ? cur.filter(k => k !== t.key) : [...cur, t.key];
+                              return { ...m, data: { ...m.data, allowedTabs: next } };
+                            })}
+                            className={`text-xs font-bold px-3 py-2 rounded-full border transition-colors ${
+                              checked ? 'bg-brand-neon/20 border-brand-neon text-brand-neon' : 'bg-white/5 border-white/10 text-white/40 hover:bg-white/10'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {adminSaveError && <p className="text-red-400 text-sm">{adminSaveError}</p>}
+              </div>
+            </div>
+            <div className="flex gap-3 p-8 pt-4 shrink-0">
+              <button onClick={handleSaveAdmin} disabled={savingAdmin} className="neon-button flex-1 justify-center">
+                <Save size={18} /> {savingAdmin ? 'กำลังบันทึก...' : 'บันทึก'}
+              </button>
+              <button onClick={() => setAdminModal({ open: false, mode: 'add', data: {} })} className="outline-button flex-1 justify-center">
+                ยกเลิก
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {deleteAdminTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-brand-navy border border-red-500/30 rounded-[32px] p-10 text-center max-w-md w-full"
+          >
+            <Trash2 size={48} className="text-red-400 mx-auto mb-6" />
+            <h3 className="text-2xl font-black mb-3">ลบบัญชีผู้ดูแลนี้?</h3>
+            <p className="text-white/50 mb-8">บัญชีนี้จะเข้าสู่ระบบไม่ได้อีกทันที</p>
+            <div className="flex gap-4">
+              <button onClick={() => handleDeleteAdmin(deleteAdminTarget)} className="flex-1 bg-red-500 text-white font-black py-3 rounded-full hover:bg-red-600 transition-colors">
+                ลบเลย
+              </button>
+              <button onClick={() => setDeleteAdminTarget(null)} className="outline-button flex-1 justify-center">
                 ยกเลิก
               </button>
             </div>
