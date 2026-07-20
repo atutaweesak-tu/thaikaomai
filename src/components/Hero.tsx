@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ChevronRight, Play } from 'lucide-react';
 import { subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
 
+const SLIDE_INTERVAL_MS = 5000;
+
 export default function Hero() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+  const [slide, setSlide] = useState(0);
 
   useEffect(() => {
     const unsub = subscribeToSiteSettings(setSettings);
@@ -14,6 +17,18 @@ export default function Hero() {
   }, []);
 
   const h = settings.hero;
+  // รูปเดียว (leaderImage) คือของเดิมก่อนมี carousel — เก็บไว้ให้ล้มเหลวปลอดภัยถ้ายังไม่ได้ตั้งค่า leaderImages ใหม่
+  const images = h.leaderImages && h.leaderImages.length > 0 ? h.leaderImages : (h.leaderImage ? [h.leaderImage] : []);
+
+  useEffect(() => {
+    setSlide(s => (s >= images.length ? 0 : s));
+  }, [images.length]);
+
+  useEffect(() => {
+    if (images.length < 2) return;
+    const timer = setInterval(() => setSlide(s => (s + 1) % images.length), SLIDE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [images.length]);
 
   const headingLines = [
     { key: 'heading1' as const, text: h.heading1, extraClass: '' },
@@ -90,15 +105,32 @@ export default function Hero() {
             className="relative"
           >
             <div className="relative z-10 rounded-[40px] overflow-hidden border border-white/10 aspect-[4/5] bg-brand-navy">
-              {h.leaderImage && (
-                <img
-                  src={h.leaderImage}
-                  alt={h.leaderName}
-                  className="w-full h-full object-cover transition-all duration-700"
-                  referrerPolicy="no-referrer"
-                />
+              {images.length > 0 && (
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={slide}
+                    src={images[slide]}
+                    alt={h.leaderName}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.8 }}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </AnimatePresence>
               )}
-              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-brand-navy to-transparent">
+              {images.length > 1 && (
+                <div className="absolute top-4 right-4 z-10 flex gap-1.5">
+                  {images.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`w-2 h-2 rounded-full transition-colors ${i === slide ? 'bg-brand-neon' : 'bg-white/30'}`}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-brand-navy to-transparent z-10">
                 <p className="text-brand-neon font-bold text-sm uppercase tracking-widest mb-2">{h.leaderTitle}</p>
                 <h3 className="text-3xl font-black tracking-tighter">{h.leaderName}</h3>
               </div>

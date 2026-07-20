@@ -229,6 +229,19 @@ export const subscribeToSiteSettings = (callback: (settings: SiteSettings) => vo
   };
 };
 
+// fetch ครั้งเดียว (ไม่ subscribe ต่อเนื่อง) — ใช้ตอนเปิดหน้า Admin settings เพื่อโหลดค่าปัจจุบันมาแก้ไข
+// ถ้าใช้ subscribeToSiteSettings (live) แทน การเชื่อมต่อ SSE ที่หลุดแล้ว fallback ไป poll ทุก 3 วิ จะเขียนทับ
+// draft ที่ยังไม่ได้กด "บันทึก" กลับเป็นค่าเดิมจาก server กลางคัน (อาการ: กดปุ่มเปลี่ยนสถานะ แล้ววิ่งกลับเป็นเดิมเอง)
+export async function fetchSiteSettings(): Promise<SiteSettings> {
+  try {
+    const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) return mergeSettings(await res.json());
+  } catch (err) {
+    console.error('[dataService] fetchSiteSettings error:', err);
+  }
+  return DEFAULT_SETTINGS;
+}
+
 export const updateSiteSettings = async (settings: SiteSettings) => {
   localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(settings));
   broadcastSettings(settings);

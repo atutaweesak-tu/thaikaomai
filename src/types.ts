@@ -124,7 +124,8 @@ export interface SiteSettings {
     buttonSecondary: string;
     buttonPrimaryLink?: string;
     buttonSecondaryLink?: string;
-    leaderImage: string;
+    leaderImage: string; // เก็บไว้เพื่อ backward-compat กับข้อมูลเก่า — ของใหม่ใช้ leaderImages แทน (สไลด์ได้หลายรูป)
+    leaderImages?: string[];
     leaderName: string;
     leaderTitle: string;
     textStyle?: {
@@ -203,6 +204,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     buttonPrimaryLink: '/policies',
     buttonSecondaryLink: '/team',
     leaderImage: '',
+    leaderImages: [],
     leaderName: 'ดร.สุชัชวีร์ สุวรรณสวัสดิ์',
     leaderTitle: 'หัวหน้าพรรค',
     textStyle: {},

@@ -14,7 +14,7 @@ import {
   subscribeToTeam, addTeamMember, updateTeamMember, deleteTeamMember,
   subscribeToNewsletter, subscribeToContact,
   subscribeToVolunteer, deleteVolunteer,
-  subscribeToSiteSettings, updateSiteSettings,
+  fetchSiteSettings, updateSiteSettings,
   fetchCategories, addCategory, deleteCategory,
   subscribeToHomeBlocks, addHomeBlock, updateHomeBlock, deleteHomeBlock,
   seedInitialData, getApiToken,
@@ -144,10 +144,12 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       subscribeToNewsletter(setNewsletter),
       subscribeToContact(setContact),
       subscribeToVolunteer(setVolunteer),
-      subscribeToSiteSettings(setSiteSettings),
       subscribeToHomeBlocks(setHomeBlocks),
     ];
     reloadCategories(); // หมวดหมู่เปลี่ยนไม่บ่อย — โหลดครั้งเดียวตอนเข้าหน้า ไม่ต้อง poll ต่อเนื่อง
+    // settings ก็โหลดครั้งเดียวเช่นกัน (ไม่ live-subscribe) — ป้องกัน draft ที่ยังไม่ได้บันทึกโดนโพลลิ่ง
+    // เขียนทับกลับเป็นค่าเดิมกลางคัน ถ้า SSE หลุดแล้ว fallback ไป poll ทุก 3 วิ (ดู fetchSiteSettings)
+    fetchSiteSettings().then(setSiteSettings);
     return () => unsubs.forEach(u => u());
   }, [isAdmin]);
 
@@ -174,6 +176,21 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       ...s,
       hero: { ...s.hero, textStyle: { ...s.hero.textStyle, [key]: { ...s.hero.textStyle?.[key], [field]: value } } },
     }));
+  // รูปเดียวเดิม (leaderImage) เก็บไว้เป็น fallback — ถ้ายังไม่เคยเพิ่ม leaderImages เลย ให้ถือว่ารูปเดิมคือรูปแรกในสไลด์
+  const heroImages = siteSettings.hero.leaderImages?.length
+    ? siteSettings.hero.leaderImages
+    : (siteSettings.hero.leaderImage ? [siteSettings.hero.leaderImage] : []);
+  const setHeroImages = (images: string[]) =>
+    setSiteSettings(s => ({ ...s, hero: { ...s.hero, leaderImages: images } }));
+  const addHeroImage = (url: string) => setHeroImages([...heroImages, url]);
+  const removeHeroImage = (index: number) => setHeroImages(heroImages.filter((_, i) => i !== index));
+  const moveHeroImage = (index: number, direction: 'up' | 'down') => {
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= heroImages.length) return;
+    const next = [...heroImages];
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+    setHeroImages(next);
+  };
   const setCta = (key: string, val: string) =>
     setSiteSettings(s => ({ ...s, cta: { ...s.cta, [key]: val } }));
   const setContactInfo = (key: string, val: string) =>
@@ -686,27 +703,40 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </div>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-white/50 mb-1">รูปหัวหน้าพรรค</label>
-                  <div className="flex gap-3 items-start">
-                    <div className="flex-1">
-                      <input type="text" value={siteSettings.hero.leaderImage} onChange={e => setHero('leaderImage', e.target.value)}
-                        placeholder="URL หรืออัพโหลดรูปจากเครื่อง"
-                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
-                    </div>
-                    <label className="cursor-pointer bg-white/10 hover:bg-brand-neon hover:text-brand-navy border border-white/20 rounded-xl px-4 py-2.5 text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2">
-                      <Upload size={14} /> อัพโหลดรูป
-                      <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        try { setHero('leaderImage', await uploadImage(file)); }
-                        catch (err) { alert(String(err)); }
-                      }} />
-                    </label>
-                    {siteSettings.hero.leaderImage && (
-                      <img src={siteSettings.hero.leaderImage} alt="preview"
-                        className="w-12 h-12 rounded-xl object-cover border border-white/20 shrink-0" />
-                    )}
+                  <label className="block text-xs font-bold text-white/50 mb-1">รูปหัวหน้าพรรค (เพิ่มได้หลายรูป — สไลด์เลื่อนอัตโนมัติถ้ามีมากกว่า 1 รูป)</label>
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    {heroImages.map((img, i) => (
+                      <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border border-white/20 group shrink-0">
+                        <img src={img} alt={`รูปที่ ${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeHeroImage(i)}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={12} />
+                        </button>
+                        <div className="absolute bottom-1 left-1 right-1 flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button type="button" disabled={i === 0} onClick={() => moveHeroImage(i, 'up')}
+                            className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center disabled:opacity-30">
+                            <ChevronUp size={11} />
+                          </button>
+                          <button type="button" disabled={i === heroImages.length - 1} onClick={() => moveHeroImage(i, 'down')}
+                            className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center disabled:opacity-30">
+                            <ChevronDown size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                  <label className="cursor-pointer inline-flex bg-white/10 hover:bg-brand-neon hover:text-brand-navy border border-white/20 rounded-xl px-4 py-2.5 text-sm font-bold transition-all whitespace-nowrap items-center gap-2">
+                    <Upload size={14} /> เพิ่มรูป
+                    <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try { addHeroImage(await uploadImage(file)); }
+                      catch (err) { alert(String(err)); }
+                    }} />
+                  </label>
                 </div>
               </div>
             </div>
