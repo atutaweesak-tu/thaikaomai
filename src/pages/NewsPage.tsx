@@ -3,14 +3,16 @@ import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Calendar, MapPin, Clock, Search } from 'lucide-react';
 import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
-import { subscribeToNews, subscribeToEvents, addNewsletterSubscriber, subscribeToSiteSettings } from '../services/dataService';
-import { NewsItem, EventItem, SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { subscribeToNews, subscribeToEvents, addNewsletterSubscriber, subscribeToSiteSettings, fetchCategories } from '../services/dataService';
+import { NewsItem, EventItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
 import { NewsCardSkeleton } from '../components/Skeleton';
 
 export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
   const [events, setEvents] = useState<EventItem[]>(FALLBACK_EVENTS);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+  const [categories, setCategories] = useState<NewsCategory[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -25,6 +27,7 @@ export default function NewsPage() {
       if (data.length > 0) setEvents(data);
     });
     const unsubSettings = subscribeToSiteSettings(setSettings);
+    fetchCategories().then(setCategories);
     const timeout = setTimeout(() => setLoading(false), 3000);
     return () => { unsubNews(); unsubEvents(); unsubSettings(); clearTimeout(timeout); };
   }, []);
@@ -37,13 +40,24 @@ export default function NewsPage() {
     return true;
   });
 
+  // แสดง chip เฉพาะหมวดที่มีข่าวจริง เรียงตาม order ที่ตั้งไว้ในหน้า admin
+  const usedCategoryNames = new Set(visibleNews.map(n => n.category));
+  const categoryChips = categories
+    .filter(c => usedCategoryNames.has(c.name))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map(c => c.name);
+
+  const byCategory = activeCategory
+    ? visibleNews.filter(n => n.category === activeCategory)
+    : visibleNews;
+
   const filtered = query.trim()
-    ? visibleNews.filter(n =>
+    ? byCategory.filter(n =>
         n.title.toLowerCase().includes(query.toLowerCase()) ||
         n.category.toLowerCase().includes(query.toLowerCase()) ||
         n.summary.toLowerCase().includes(query.toLowerCase())
       )
-    : visibleNews;
+    : byCategory;
 
   const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +103,33 @@ export default function NewsPage() {
               <img src={settings.pages.newsImage} alt="" className="w-full h-full object-cover" style={{ objectPosition: settings.pages.newsImagePos || '50% 50%' }} referrerPolicy="no-referrer" />
             </div>
           )}
+          {categoryChips.length > 0 && (
+            <div className="flex flex-wrap gap-3 mt-10">
+              <button
+                onClick={() => setActiveCategory(null)}
+                className={`px-5 py-2 rounded-full text-sm font-bold transition-colors ${
+                  activeCategory === null
+                    ? 'bg-brand-neon text-brand-navy'
+                    : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10'
+                }`}
+              >
+                ทั้งหมด
+              </button>
+              {categoryChips.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => setActiveCategory(name)}
+                  className={`px-5 py-2 rounded-full text-sm font-bold transition-colors ${
+                    activeCategory === name
+                      ? 'bg-brand-neon text-brand-navy'
+                      : 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
@@ -101,7 +142,11 @@ export default function NewsPage() {
             ) : filtered.length === 0 ? (
               <div className="text-center py-16 text-white/40">
                 <Search size={48} className="mx-auto mb-4 opacity-30" />
-                <p className="text-xl">ไม่พบข่าวสารที่ตรงกับ "{query}"</p>
+                <p className="text-xl">
+                  {query.trim()
+                    ? `ไม่พบข่าวสารที่ตรงกับ "${query}"`
+                    : `ไม่พบข่าวสารในหมวด "${activeCategory}"`}
+                </p>
               </div>
             ) : (
               filtered.map((item) => (
