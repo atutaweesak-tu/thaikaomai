@@ -51,6 +51,9 @@ export interface EventItem extends AuditFields {
   date: string;
   location: string;
   time: string;
+  published?: boolean;
+  publishAt?: string;
+  unpublishAt?: string;
 }
 
 /** หมวดหมู่ข่าว — จัดการได้จากหน้า Admin แทนการพิมพ์ freetext */

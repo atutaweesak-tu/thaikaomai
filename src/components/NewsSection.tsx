@@ -31,6 +31,14 @@ export default function NewsSection() {
     return true;
   });
 
+  const visibleEvents = events.filter(ev => {
+    if (ev.published === false) return false;
+    const now = new Date();
+    if (ev.publishAt && new Date(ev.publishAt) > now) return false;
+    if (ev.unpublishAt && new Date(ev.unpublishAt) < now) return false;
+    return true;
+  });
+
   return (
     <section className="py-24 bg-black/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -90,7 +98,7 @@ export default function NewsSection() {
               <h3 className="text-3xl font-black tracking-tighter mb-10">UPCOMING <br /> EVENTS.</h3>
               
               <div className="space-y-8">
-                {events.map((event) => (
+                {visibleEvents.map((event) => (
                   <div key={event.id} className="group cursor-pointer">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-brand-neon rounded-2xl flex flex-col items-center justify-center text-brand-navy shrink-0">

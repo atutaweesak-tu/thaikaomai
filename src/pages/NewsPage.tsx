@@ -40,6 +40,14 @@ export default function NewsPage() {
     return true;
   });
 
+  const visibleEvents = events.filter(ev => {
+    if (ev.published === false) return false;
+    const now = new Date();
+    if (ev.publishAt && new Date(ev.publishAt) > now) return false;
+    if (ev.unpublishAt && new Date(ev.unpublishAt) < now) return false;
+    return true;
+  });
+
   // แสดง chip เฉพาะหมวดที่มีข่าวจริง เรียงตาม order ที่ตั้งไว้ในหน้า admin
   const usedCategoryNames = new Set(visibleNews.map(n => n.category));
   const categoryChips = categories
@@ -190,7 +198,7 @@ export default function NewsPage() {
               <div>
                 <h3 className="text-2xl font-black tracking-tighter mb-8 uppercase">กิจกรรมที่กำลังจะมาถึง</h3>
                 <div className="space-y-6">
-                  {events.map((event) => (
+                  {visibleEvents.map((event) => (
                     <div key={event.id} className="bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all">
                       <div className="flex items-center gap-3 text-brand-neon font-bold text-sm mb-4">
                         <Calendar size={16} />

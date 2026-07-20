@@ -46,7 +46,7 @@ async function uploadImage(file: File): Promise<string> {
 }
 
 const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', date: '', image: '', category: '', published: true, publishAt: '', unpublishAt: '' };
-const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '' };
+const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_POLICY: Omit<Policy, 'id'> = { title: '', description: '', icon: 'BookOpen', iconImage: '', color: '#E6FF00', published: true, publishAt: '', unpublishAt: '', featuredHome: false };
 const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', category: 'leader', published: true, featuredHome: false };
 
@@ -84,6 +84,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const [uploading, setUploading] = useState(false);
   const [adminSearch, setAdminSearch] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -243,11 +244,24 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     try {
       for (const item of tabData) {
         if (tab === 'news') await updateNews(item.id, { published });
+        else if (tab === 'events') await updateEvent(item.id, { published });
         else if (tab === 'policies') await updatePolicy(item.id, { published });
         else if (tab === 'team') await updateTeamMember(item.id, { published });
       }
     } catch { alert('เกิดข้อผิดพลาดระหว่าง bulk update'); }
     finally { setBulkLoading(false); }
+  };
+
+  const handleTogglePublished = async (item: any) => {
+    const published = item.published === false;
+    setTogglingId(item.id);
+    try {
+      if (tab === 'news') await updateNews(item.id, { published });
+      else if (tab === 'events') await updateEvent(item.id, { published });
+      else if (tab === 'policies') await updatePolicy(item.id, { published });
+      else if (tab === 'team') await updateTeamMember(item.id, { published });
+    } catch (err: any) { alert(err?.message || 'เกิดข้อผิดพลาดระหว่างเปลี่ยนสถานะ'); }
+    finally { setTogglingId(null); }
   };
 
   const handleResetSettings = () => {
@@ -387,6 +401,9 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'date', label: 'วันที่', type: 'text' },
       { key: 'location', label: 'สถานที่', type: 'text' },
       { key: 'time', label: 'เวลา', type: 'text' },
+      { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
+      { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+      { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
     ],
     policies: [
       { key: 'title', label: 'ชื่อนโยบาย', type: 'text', maxLength: 200 },
@@ -997,7 +1014,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
               </h2>
               <div className="flex flex-wrap gap-2 items-center">
                 {/* Bulk publish/unpublish */}
-                {['news', 'policies', 'team'].includes(tab) && (
+                {['news', 'events', 'policies', 'team'].includes(tab) && (
                   <>
                     <button onClick={() => handleBulkToggle(true)} disabled={bulkLoading}
                       className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all disabled:opacity-50">
@@ -1103,24 +1120,40 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           {item.category || item.date}
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'policies' || tab === 'team') && (
-                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                          item.published === false ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
-                        }`}>
-                          {item.published === false ? '● ซ่อน' : '● แสดง'}
-                        </span>
+                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'team') && (
+                        canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePublished(item)}
+                            disabled={togglingId === item.id}
+                            title="กดเพื่อเปลี่ยนสถานะ"
+                            className={`text-xs font-bold px-3 py-1 rounded-full transition-colors disabled:opacity-50 ${
+                              item.published === false
+                                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                            }`}
+                          >
+                            {togglingId === item.id ? '...' : item.published === false ? '● ซ่อน' : '● แสดง'}
+                          </button>
+                        ) : (
+                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                            item.published === false ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+                          }`}>
+                            {item.published === false ? '● ซ่อน' : '● แสดง'}
+                          </span>
+                        )
                       )}
                       {(tab === 'team' || tab === 'policies') && item.featuredHome && (
                         <span className="bg-brand-neon/20 text-brand-neon text-xs font-bold px-3 py-1 rounded-full">
                           ★ หน้าหลัก
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'policies') && item.publishAt && (
+                      {(tab === 'news' || tab === 'events' || tab === 'policies') && item.publishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           เริ่ม {new Date(item.publishAt).toLocaleDateString('th-TH')}
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'policies') && item.unpublishAt && (
+                      {(tab === 'news' || tab === 'events' || tab === 'policies') && item.unpublishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           หมด {new Date(item.unpublishAt).toLocaleDateString('th-TH')}
                         </span>
