@@ -11,6 +11,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PopupBanner from './components/PopupBanner';
 import SiteNoticeBar from './components/SiteNoticeBar';
+import ScrollToTop from './components/ScrollToTop';
 import HomePage from './pages/HomePage';
 
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -30,6 +31,7 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <Router>
+          <ScrollToTop />
           <div className="min-h-screen flex flex-col">
             <ErrorBoundary fallback={null}>
               <PopupBanner />
