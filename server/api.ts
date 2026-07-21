@@ -126,6 +126,13 @@ function absoluteImageUrl(host: string, image: string | undefined): string {
   return fallback;
 }
 
+// ป้องกัน </script> breakout เวลาฝัง JSON-LD ลง <script type="application/ld+json"> — JSON.stringify
+// ไม่ escape "<" ให้เอง เผื่อ title/description/ที่อยู่ติดต่อมีข้อความ "</script><script>...</script>"
+// ปนอยู่ (admin กรอกเอง ไม่ผ่านการ validate รูปแบบ) จะปิด script tag ก่อนกำหนดแล้วแทรกสคริปต์ใหม่ต่อได้
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, '\\u003c');
+}
+
 // ── Admin accounts (collection "users") ─────────────────────────────────────────
 // ตัด passwordHash ออกก่อนส่งให้ client เสมอ ไม่ว่าจะผ่าน GET/SSE/POST response ใดๆ
 function stripPasswordHash(item: any) {
@@ -836,7 +843,12 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
       if (item && isPublicNow(item)) {
         const title = escapeHtml(item.seoTitle || item.title || '');
         const description = escapeHtml(item.seoDescription || item.summary || '');
-        const image = absoluteImageUrl(host, item.image);
+        // image เป็นค่าที่ admin กรอกเอง (แม้แค่สิทธิ์แท็บ "news" ธรรมดา) ไม่ผ่านการ validate รูปแบบ
+        // URL เลย — เก็บค่าดิบไว้ใช้ใน JSON-LD (safeJsonLd จัดการ escape ของมันเองแบบเหมาะกับ JSON)
+        // ส่วนที่แทรกลง HTML attribute (content="...") ต้อง escapeHtml แยกต่างหาก ไม่งั้นหลุดออกจาก
+        // attribute ได้ (เช่น image ที่มี "><script>...</script> ปนอยู่)
+        const imageUrl = absoluteImageUrl(host, item.image);
+        const image = escapeHtml(imageUrl);
         html = html
           .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
           .replace(/(<meta name="description" content=")[^"]*(")/, `$1${description}$2`)
@@ -853,11 +865,11 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
           '@type': 'NewsArticle',
           headline: item.title,
           description: item.summary || '',
-          image,
+          image: imageUrl,
           datePublished: item.createdAt || item.date || '',
           dateModified: item.updatedAt || item.createdAt || item.date || '',
         };
-        html = html.replace('</head>', `<script type="application/ld+json">${JSON.stringify(articleLd)}</script></head>`);
+        html = html.replace('</head>', `<script type="application/ld+json">${safeJsonLd(articleLd)}</script></head>`);
       }
     }
 
@@ -876,7 +888,7 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
         ...(contact.address ? { address: contact.address } : {}),
         sameAs: [contact.facebook, contact.twitter, contact.instagram, contact.youtube].filter((u: string) => u && u !== '#'),
       };
-      html = html.replace('</head>', `<script type="application/ld+json">${JSON.stringify(orgLd)}</script></head>`);
+      html = html.replace('</head>', `<script type="application/ld+json">${safeJsonLd(orgLd)}</script></head>`);
     } catch { /* settings.json แปลกๆ — ข้าม JSON-LD องค์กรไปเฉยๆ ไม่ทำให้หน้าเว็บพังทั้งหน้า */ }
 
     res.end(html);
