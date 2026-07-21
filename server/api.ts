@@ -894,11 +894,14 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const dates = Object.keys(stored).filter(d => d >= cutoff).sort();
 
-    const byDate = dates.map(date => {
-      const paths = stored[date];
-      const total = Object.values(paths).reduce((a, b) => a + b, 0);
-      return { date, total };
-    });
+    // สร้างครบทุกวันในช่วงที่เลือกเสมอ (เติม 0 ให้วันที่ไม่มี pageview) ไม่ใช่แค่วันที่มีข้อมูลจริง —
+    // ถ้าไม่ทำแบบนี้ แท่งกราฟจะยืดเต็มความกว้างเวลามีข้อมูลแค่ไม่กี่วัน ดูเหมือนกราฟพัง — วันนี้อยู่ขวาสุดเสมอ
+    const byDate: { date: string; total: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const total = Object.values(stored[date] || {}).reduce((a, b) => a + b, 0);
+      byDate.push({ date, total });
+    }
 
     const topPagesMap = new Map<string, number>();
     for (const date of dates) {
