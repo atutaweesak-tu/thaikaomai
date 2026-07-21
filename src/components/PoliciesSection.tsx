@@ -46,7 +46,8 @@ export default function PoliciesSection() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap แทน stack เต็มความกว้างทีละใบ — จอ md ขึ้นไปกลับไปใช้ grid ปกติ */}
+        <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible">
           {homePolices.map((policy, index) => {
             const IconComponent = (Icons as any)[policy.icon];
             return (
@@ -56,7 +57,7 @@ export default function PoliciesSection() {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="bento-card group"
+                className="bento-card group shrink-0 w-[80%] snap-center md:w-auto md:shrink"
               >
                 <div className="w-14 h-14 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-6 group-hover:bg-brand-neon group-hover:text-brand-navy transition-all duration-300 overflow-hidden">
                   {policy.iconImage

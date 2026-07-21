@@ -55,7 +55,9 @@ export default function NewsSection() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap แทน stack เต็มความกว้างทีละใบ (การ์ดสูงเพราะมีรูป ทำให้
+                หน้ายาวมากถ้า stack) — จอ md ขึ้นไปกลับไปใช้ grid ปกติเหมือนเดิม ไม่กระทบ desktop */}
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 md:gap-8 md:overflow-visible">
               {visibleNews.map((item, index) => (
                 <motion.div
                   key={item.id}
@@ -63,7 +65,7 @@ export default function NewsSection() {
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   viewport={{ once: true }}
-                  className="group cursor-pointer"
+                  className="group cursor-pointer shrink-0 w-[85%] snap-center md:w-auto md:shrink"
                 >
                   <div className="aspect-[16/9] rounded-3xl overflow-hidden mb-6 border border-white/10">
                     <img
@@ -98,9 +100,11 @@ export default function NewsSection() {
             <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 h-full">
               <h3 className="text-3xl font-black tracking-tighter mb-10">UPCOMING <br /> EVENTS.</h3>
               
-              <div className="space-y-8">
+              {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap เหมือนการ์ดข่าวด้านบน — ห่อการ์ดแต่ละ event ด้วย
+                  กรอบบางๆ ให้เห็นขอบเขตตอนเลื่อน ส่วนจอ md ขึ้นไปกลับไปเป็น list แนวตั้งแบบเดิม */}
+              <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block md:space-y-8 md:overflow-visible md:pb-0">
                 {visibleEvents.map((event) => (
-                  <div key={event.id} className="group cursor-pointer">
+                  <div key={event.id} className="group cursor-pointer shrink-0 w-[80%] snap-center bg-white/5 border border-white/10 rounded-3xl p-5 md:w-auto md:shrink md:bg-transparent md:border-0 md:rounded-none md:p-0">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-brand-neon rounded-2xl flex flex-col items-center justify-center text-brand-navy shrink-0">
                         <span className="text-xs font-black leading-none">{event.date.split(' ')[0]}</span>

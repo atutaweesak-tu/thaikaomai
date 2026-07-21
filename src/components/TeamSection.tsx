@@ -33,7 +33,8 @@ export default function TeamSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap แทน stack เต็มความกว้างทีละใบ — จอ md ขึ้นไปกลับไปใช้ grid ปกติ */}
+        <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-3 md:gap-8 md:overflow-visible">
           {homeTeam.map((member, index) => (
             <motion.div
               key={member.id}
@@ -41,7 +42,7 @@ export default function TeamSection() {
               whileInView={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.1 }}
               viewport={{ once: true }}
-              className="group relative"
+              className="group relative shrink-0 w-[80%] snap-center md:w-auto md:shrink"
             >
               <div className="aspect-[3/4] rounded-3xl overflow-hidden border border-white/10 mb-6 relative bg-white/5">
                 {member.image ? (
