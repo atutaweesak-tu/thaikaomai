@@ -21,7 +21,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           <div className="col-span-1 md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-6">
-              <img src="/tkm-logo.png" alt="ไทยก้าวใหม่" className="h-12 w-auto" />
+              <img src="/tkm-logo.png" alt="ไทยก้าวใหม่" className="h-12 w-auto" loading="lazy" />
             </Link>
             <p className="text-white/50 text-sm leading-relaxed mb-6">
               {footer.description}
@@ -90,7 +90,7 @@ export default function Footer() {
             {contact.qrCode && (
               <div className="mt-6">
                 <p className="text-xs text-white/30 mb-2">สแกน QR เพื่อติดตาม</p>
-                <img src={contact.qrCode} alt="QR Code" className="w-24 h-24 object-contain rounded-xl border border-white/10 bg-white p-1.5" />
+                <img src={contact.qrCode} alt="QR Code" className="w-24 h-24 object-contain rounded-xl border border-white/10 bg-white p-1.5" loading="lazy" />
               </div>
             )}
           </div>

@@ -50,6 +50,7 @@ export default function TeamSection() {
                     alt={member.name}
                     className="w-full h-full object-cover transition-all duration-500"
                     referrerPolicy="no-referrer"
+                    loading="lazy"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

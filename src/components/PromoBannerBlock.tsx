@@ -27,6 +27,7 @@ export default function PromoBannerBlock({ block }: { block: PageBlock; key?: st
                 alt={block.title || ''}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
+                loading="lazy"
               />
             </div>
           )}

@@ -91,6 +91,7 @@ export default function PopupBanner() {
                 src={settings.popup.image}
                 alt="ประกาศ"
                 className="w-full h-auto block"
+                loading="lazy"
               />
             </div>
 

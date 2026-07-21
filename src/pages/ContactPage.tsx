@@ -220,7 +220,7 @@ export default function ContactPage() {
               {contact.qrCode && (
                 <div className="mt-6 flex flex-col items-center gap-3">
                   <p className="text-sm font-bold text-white/50">สแกน QR เพื่อติดตาม</p>
-                  <img src={contact.qrCode} alt="QR Code" className="w-36 h-36 object-contain rounded-2xl border border-white/10 bg-white p-2" />
+                  <img src={contact.qrCode} alt="QR Code" className="w-36 h-36 object-contain rounded-2xl border border-white/10 bg-white p-2" loading="lazy" />
                 </div>
               )}
             </div>

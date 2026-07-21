@@ -60,7 +60,7 @@ export default function PoliciesPage() {
                 <div className={index % 2 === 0 ? "order-1" : "order-1 lg:order-2"}>
                   <div className="w-20 h-20 bg-brand-neon rounded-3xl flex items-center justify-center text-brand-navy mb-8 overflow-hidden">
                     {policy.iconImage
-                      ? <img src={policy.iconImage} alt={policy.title} className="w-full h-full object-cover" />
+                      ? <img src={policy.iconImage} alt={policy.title} className="w-full h-full object-cover" loading="lazy" />
                       : IconComponent ? <IconComponent size={40} /> : null}
                   </div>
                   <h2 className="text-4xl font-black tracking-tighter mb-6">{policy.title}</h2>
@@ -76,6 +76,7 @@ export default function PoliciesPage() {
                         alt={policy.title}
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
+                        loading="lazy"
                       />
                     </div>
                   </div>

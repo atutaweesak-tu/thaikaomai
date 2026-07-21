@@ -60,7 +60,7 @@ export default function PoliciesSection() {
               >
                 <div className="w-14 h-14 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-6 group-hover:bg-brand-neon group-hover:text-brand-navy transition-all duration-300 overflow-hidden">
                   {policy.iconImage
-                    ? <img src={policy.iconImage} alt={policy.title} className="w-full h-full object-cover" />
+                    ? <img src={policy.iconImage} alt={policy.title} className="w-full h-full object-cover" loading="lazy" />
                     : IconComponent ? <IconComponent size={28} /> : null}
                 </div>
                 <h3 className="text-xl font-bold mb-4 tracking-tight">{policy.title}</h3>

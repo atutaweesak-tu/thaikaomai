@@ -66,11 +66,12 @@ export default function NewsSection() {
                   className="group cursor-pointer"
                 >
                   <div className="aspect-[16/9] rounded-3xl overflow-hidden mb-6 border border-white/10">
-                    <img 
-                      src={item.image} 
+                    <img
+                      src={item.image}
                       alt={item.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       referrerPolicy="no-referrer"
+                      loading="lazy"
                     />
                   </div>
                   <div className="flex items-center gap-4 mb-4">

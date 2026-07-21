@@ -134,19 +134,42 @@ function stripPasswordHash(item: any) {
 }
 
 // ── Session Store ──────────────────────────────────────────────────────────────
+// เก็บลงไฟล์ด้วย (ไม่ใช่แค่ memory) กัน restart/deploy ทำให้ admin หลุด login หมดทุกคน — ปัญหาที่เจอซ้ำๆ
+// ทุกครั้งที่ deploy ตลอด session ที่ผ่านมา ความเสี่ยงจากการเก็บ token ลงดิสก์ใกล้เคียงกับที่ users.json
+// เก็บ passwordHash ไว้อยู่แล้ว ไม่ใช่ความเสี่ยงประเภทใหม่ — sessionsFile ถูกตั้งค่าตอน createApiHandlers
+// เรียกครั้งแรก (ต้องรู้ dataDir ซึ่งอยู่นอก scope ของ session store นี้)
 interface Session { email: string; name: string; role: 'super_admin' | 'admin'; allowedTabs: string[]; expiresAt: number }
 const sessions = new Map<string, Session>();
 const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 ชั่วโมง
+let sessionsFile: string | null = null;
+
+function saveSessions() {
+  if (!sessionsFile) return;
+  try { fs.writeFileSync(sessionsFile, JSON.stringify([...sessions]), 'utf-8'); }
+  catch { /* เขียนไม่สำเร็จ — session ยังใช้ได้จาก memory ต่อ แค่ไม่รอดถ้า restart รอบหน้า */ }
+}
+
+function loadSessions(file: string) {
+  try {
+    if (!fs.existsSync(file)) return;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8')) as [string, Session][];
+    const now = Date.now();
+    for (const [token, s] of raw) if (s.expiresAt > now) sessions.set(token, s); // ข้าม session ที่หมดอายุไปแล้ว
+  } catch { /* ไฟล์เสีย/ไม่มี — เริ่มด้วย session ว่างเหมือนพฤติกรรมเดิม */ }
+}
 
 function createSession(user: AdminUser): string {
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { email: user.email, name: user.name, role: user.role, allowedTabs: user.allowedTabs, expiresAt: Date.now() + SESSION_TTL });
+  saveSessions();
   return token;
 }
 
 function purgeExpiredSessions() {
   const now = Date.now();
-  for (const [token, s] of sessions) if (now > s.expiresAt) sessions.delete(token);
+  let changed = false;
+  for (const [token, s] of sessions) if (now > s.expiresAt) { sessions.delete(token); changed = true; }
+  if (changed) saveSessions();
 }
 
 function getSession(req: IncomingMessage): Session | null {
@@ -155,7 +178,7 @@ function getSession(req: IncomingMessage): Session | null {
   if (!token) return null;
   const session = sessions.get(token);
   if (!session) return null;
-  if (Date.now() > session.expiresAt) { sessions.delete(token); return null; }
+  if (Date.now() > session.expiresAt) { sessions.delete(token); saveSessions(); return null; }
   return session;
 }
 
@@ -269,6 +292,10 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
   const mailer = createMailer(env);
   const adminUsers = loadAdminUsers(env);
 
+  // โหลด session ที่ persist ไว้จาก process ก่อนหน้า (ถ้ามี) ก่อนรับ request แรก
+  sessionsFile = path.join(dataDir, 'sessions.json');
+  loadSessions(sessionsFile);
+
   // ── Per-collection write queue ──────────────────────────────────
   // readCollection()/writeCollection() คือ read-modify-write บนไฟล์ JSON แบบ sync ไม่มี lock ใดๆ
   // ถ้ามี 2 request มาเขียน collection เดียวกันพร้อมกัน (เช่น browser ค้างแล้วยิง request ซ้อนกันหลายอัน)
@@ -374,7 +401,7 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     res.setHeader('Content-Type', 'application/json');
     if (req.method !== 'POST') { res.statusCode = 405; res.end('{}'); return; }
     const token = (req.headers['authorization'] || '').toString().replace(/^Bearer\s+/i, '');
-    if (token) sessions.delete(token);
+    if (token) { sessions.delete(token); saveSessions(); }
     res.end('{"ok":true}');
   }
 
@@ -520,6 +547,9 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     // คนละแบบ (array) ทำให้ admin ที่ไม่มีสิทธิ์แท็บ "ตั้งค่าเว็บ" หลุดผ่าน requireAuth ธรรมดาแทน
     // requireTab ไปแตะไฟล์นี้ได้ — จึงต้องกันไว้ตรงนี้เลย
     if (col === 'settings') { res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบ endpoint นี้ — ใช้ /api/settings แทน' })); return; }
+    // "sessions" ไม่ใช่ collection สาธารณะ — เป็นไฟล์ persist bearer token ของ admin (ดู Session Store
+    // ด้านบน) ถ้าปล่อยให้เส้นทางนี้อ่าน sessions.json ตรงๆ จะหลุด token ทุกคนออกทาง GET ที่ไม่ต้อง login เลย
+    if (col === 'sessions') { res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบ endpoint นี้' })); return; }
 
     res.setHeader('Cache-Control', 'no-store');
     const isProtected = PROTECTED_READ_COLLECTIONS.has(col);
@@ -555,17 +585,32 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
 
     // GET — collections ที่เป็น PII (contact/volunteer/newsletter) ต้อง login ก่อนอ่าน
     // "users" ต้องมีสิทธิ์แท็บ users โดยเฉพาะ และตัด passwordHash ออกก่อนส่งเสมอ
+    // มี /:id ต่อท้ายก็ได้ (เช่น GET /api/data/news/abc123) — ดึงทีละชิ้นแทนทั้ง collection สำหรับ
+    // แอปมือถือ/deep-link ในอนาคตที่ไม่อยากโหลดทั้ง collection แค่เพื่อเปิดข่าวชิ้นเดียว
     if (req.method === 'GET') {
       if (col === 'users') {
         if (!requireTab(req, res, 'users')) return;
-        res.end(JSON.stringify(readCollection(col).map(stripPasswordHash))); return;
+        const usersList = readCollection(col).map(stripPasswordHash);
+        if (idOrStream) {
+          const item = usersList.find((u: any) => u.id === idOrStream);
+          if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบข้อมูล' })); return; }
+          res.end(JSON.stringify(item)); return;
+        }
+        res.end(JSON.stringify(usersList)); return;
       }
       if (isProtected && !requireAuth(req, res)) return;
       // ไม่ login (เว็บสาธารณะ/มือถือในอนาคต) เห็นเฉพาะ item ที่เผยแพร่จริง — เดิมโค้ดจุดนี้ส่งทั้ง
       // collection กลับไปตรงๆ ไม่กรอง published/publishAt/unpublishAt เลย ทำให้ draft หลุดผ่าน API ได้
       // แม้หน้าเว็บจะกรองด้วย client-side logic อยู่แล้วก็ตาม (เข้าถึงตรงผ่าน curl/มือถือได้อยู่ดี)
-      const items = readCollection(col);
-      res.end(JSON.stringify(getSession(req) ? items : items.filter(isPublicNow))); return;
+      const visible = getSession(req) ? readCollection(col) : readCollection(col).filter(isPublicNow);
+      if (idOrStream) {
+        const item = visible.find((i: any) => i.id === idOrStream);
+        // ไม่พบ = ไม่มีจริง หรือมีแต่ยังไม่เผยแพร่ (กรองออกไปแล้วข้างบน) ตอบ 404 เหมือนกันทั้งสองกรณี
+        // ไม่ให้แยกแยะได้ว่า id นี้มีอยู่จริงแต่แค่ยังไม่เผยแพร่หรือไม่มีเลย
+        if (!item) { res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบข้อมูล' })); return; }
+        res.end(JSON.stringify(item)); return;
+      }
+      res.end(JSON.stringify(visible)); return;
     }
 
     if (col === 'users') {
