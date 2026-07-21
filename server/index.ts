@@ -18,7 +18,7 @@ if (!fs.existsSync(distDir)) {
 }
 
 const env = readRawEnv(rootDir);
-const handlers = createApiHandlers(env, dataDir);
+const handlers = createApiHandlers(env, dataDir, distDir);
 
 const app = express();
 app.disable('x-powered-by');
@@ -54,13 +54,18 @@ app.use('/api/settings', handlers.settings);
 app.use('/api/upload', handlers.upload);
 app.use('/api/data', handlers.data);
 
-app.use(express.static(distDir));
+app.get('/sitemap.xml', handlers.sitemap);
+app.get('/api/analytics', handlers.analytics);
+app.get('/api/media', handlers.media);
+
+// express.static เสิร์ฟ dist/index.html ให้ "/" ไปแล้วก่อนถึง catch-all ด้านล่าง (ไฟล์ static ทั่วไป
+// เช่น robots.txt/รูป/ไอคอนยังผ่านทางนี้ได้ปกติ) — ยกเว้น index.html ที่ตัดออกเพื่อให้ทุก route (รวม "/")
+// ไปผ่าน renderSpaHtml เสมอ จะได้แทรก meta/JSON-LD ได้สม่ำเสมอทุกหน้า ไม่ใช่แค่หน้าข่าว
+app.use(express.static(distDir, { index: false }));
 app.use('/uploads', express.static(path.join(rootDir, 'public/uploads')));
 
-// SPA fallback สำหรับ client-side routing (react-router)
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(distDir, 'index.html'));
-});
+// SPA fallback สำหรับ client-side routing (react-router) + เติม SEO meta/JSON-LD ก่อนส่ง (server/api.ts)
+app.get('*', handlers.renderSpaHtml);
 
 const port = Number(process.env.PORT || 3001);
 app.listen(port, '0.0.0.0', () => {

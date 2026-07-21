@@ -6,6 +6,7 @@ import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
 import { subscribeToNews, subscribeToEvents, addNewsletterSubscriber, subscribeToSiteSettings, fetchCategories } from '../services/dataService';
 import { NewsItem, EventItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
 import { NewsCardSkeleton } from '../components/Skeleton';
+import Honeypot from '../components/Honeypot';
 
 export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -16,6 +17,7 @@ export default function NewsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterWebsite, setNewsletterWebsite] = useState('');
   const [newsletterStatus, setNewsletterStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   useEffect(() => {
@@ -72,7 +74,7 @@ export default function NewsPage() {
     if (!newsletterEmail) return;
     setNewsletterStatus('sending');
     try {
-      await addNewsletterSubscriber(newsletterEmail);
+      await addNewsletterSubscriber(newsletterEmail, newsletterWebsite);
       setNewsletterStatus('sent');
       setNewsletterEmail('');
     } catch {
@@ -227,6 +229,7 @@ export default function NewsPage() {
                   <p className="font-black text-center py-4">สมัครสำเร็จ! ขอบคุณ</p>
                 ) : (
                   <form onSubmit={handleNewsletter}>
+                    <Honeypot value={newsletterWebsite} onChange={setNewsletterWebsite} />
                     <input
                       type="email"
                       value={newsletterEmail}

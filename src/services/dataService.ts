@@ -1,4 +1,4 @@
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData } from '../types';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 
@@ -137,17 +137,19 @@ export const deleteTeamMember = (id: string) => apiDelete('team', id);
 
 // ─── NEWSLETTER ───────────────────────────────────────────────────────────────
 
-export const addNewsletterSubscriber = (email: string) => apiAdd('newsletter', { email, subscribedAt: new Date().toISOString() });
+// พารามิเตอร์ website คือค่าจากฟิลด์ honeypot (ดู src/components/Honeypot.tsx) — ส่งต่อไปให้ server
+// เช็คเงียบๆ เอง ไม่ต้อง validate อะไรฝั่ง client เพราะจุดประสงค์คือดักบอทที่ไม่รัน JS ตรวจสอบ
+export const addNewsletterSubscriber = (email: string, website?: string) => apiAdd('newsletter', { email, subscribedAt: new Date().toISOString(), website });
 export const subscribeToNewsletter = (cb: (s: NewsletterSubscriber[]) => void) => subscribeToCollection<NewsletterSubscriber>('newsletter', cb);
 
 // ─── CONTACT ──────────────────────────────────────────────────────────────────
 
-export const addContactMessage = (msg: Omit<ContactMessage, 'id'>) => apiAdd('contact', { ...msg, sentAt: new Date().toISOString() });
+export const addContactMessage = (msg: Omit<ContactMessage, 'id'>, website?: string) => apiAdd('contact', { ...msg, sentAt: new Date().toISOString(), website });
 export const subscribeToContact = (cb: (m: ContactMessage[]) => void) => subscribeToCollection<ContactMessage>('contact', cb);
 
 // ─── VOLUNTEER ────────────────────────────────────────────────────────────────
 
-export const addVolunteer = (item: Omit<VolunteerItem, 'id'>) => apiAdd('volunteer', { ...item, submittedAt: new Date().toISOString() });
+export const addVolunteer = (item: Omit<VolunteerItem, 'id'>, website?: string) => apiAdd('volunteer', { ...item, submittedAt: new Date().toISOString(), website });
 export const subscribeToVolunteer = (cb: (v: VolunteerItem[]) => void) => subscribeToCollection<VolunteerItem>('volunteer', cb);
 export const deleteVolunteer = (id: string) => apiDelete('volunteer', id);
 
@@ -264,6 +266,13 @@ export const updateSiteSettings = async (settings: SiteSettings) => {
   localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(settings));
   broadcastSettings(settings);
 };
+
+// ─── ANALYTICS (pageview นับสด — aggregate เท่านั้น ไม่มี tracking รายคน) ─────────
+export async function fetchAnalytics(days: number): Promise<AnalyticsData> {
+  const res = await fetch(`/api/analytics?days=${days}&t=${Date.now()}`, { cache: 'no-store', headers: authHeaders() });
+  if (!res.ok) throw new Error(`โหลดข้อมูลสถิติไม่สำเร็จ (${res.status})`);
+  return res.json();
+}
 
 // ─── SEED DATA ────────────────────────────────────────────────────────────────
 

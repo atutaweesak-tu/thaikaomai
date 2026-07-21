@@ -9,6 +9,9 @@ import { createApiHandlers } from './server/api';
 
 function localApiPlugin(): Plugin {
   const dataDir = path.resolve(__dirname, 'data');
+  // dev mode ไม่ได้ใช้ renderSpaHtml/sitemap (Vite เองเสิร์ฟ index.html ตอน dev ผ่าน pipeline ของมันเอง
+  // พร้อม HMR) เลยไม่ได้ผูกเข้า server.middlewares ด้านล่าง — ค่านี้เลยแค่ทำให้ signature ตรงเฉยๆ
+  const distDir = path.resolve(__dirname, 'dist');
 
   return {
     name: 'local-api',
@@ -16,7 +19,7 @@ function localApiPlugin(): Plugin {
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
       const env = readRawEnv(__dirname);
-      const handlers = createApiHandlers(env, dataDir);
+      const handlers = createApiHandlers(env, dataDir, distDir);
 
       server.middlewares.use('/api/auth/login', handlers.login);
       server.middlewares.use('/api/auth/logout', handlers.logout);
@@ -24,6 +27,8 @@ function localApiPlugin(): Plugin {
       server.middlewares.use('/api/settings', handlers.settings);
       server.middlewares.use('/api/upload', handlers.upload);
       server.middlewares.use('/api/data', handlers.data);
+      server.middlewares.use('/api/analytics', handlers.analytics);
+      server.middlewares.use('/api/media', handlers.media);
     },
   };
 }

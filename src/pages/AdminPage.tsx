@@ -3,8 +3,8 @@ import { motion } from 'motion/react';
 import {
   Plus, Pencil, Trash2, Save, X, Database, Newspaper,
   Calendar, BookOpen, Users, Mail, MessageSquare, LogIn,
-  AlertTriangle, Eye, EyeOff, ShieldCheck, UserPlus, LogOut, Settings, Upload,
-  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate
+  AlertTriangle, Eye, EyeOff, ShieldCheck, UserPlus, LogOut, Settings,
+  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import {
@@ -18,12 +18,13 @@ import {
   fetchCategories, addCategory, deleteCategory,
   subscribeToHomeBlocks, addHomeBlock, updateHomeBlock, deleteHomeBlock,
   subscribeToAdminAccounts, addAdminAccount, updateAdminAccount, deleteAdminAccount,
-  seedInitialData, getApiToken,
+  seedInitialData, fetchAnalytics,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData } from '../types';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
+import ImageUploadField from '../components/ImageUploadField';
 
-type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings';
+type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings' | 'analytics';
 
 // ค่า default ของแท็บที่ admin ธรรมดา (role='admin') ได้ ถ้าตอนสร้างบัญชีไม่ได้เลือกแท็บเอง —
 // ตรงกับ DEFAULT_ADMIN_TABS ฝั่ง server (server/api.ts) คือทุกแท็บยกเว้น users/settings
@@ -33,27 +34,13 @@ const DEFAULT_ADMIN_TABS_CLIENT: Tab[] = ['news', 'events', 'policies', 'team', 
 const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
   { label: 'เนื้อหาเว็บ', tabs: ['news', 'events', 'policies', 'team', 'homeBlocks'] },
   { label: 'ข้อมูลติดต่อ', tabs: ['newsletter', 'contact', 'volunteer'] },
-  { label: 'ระบบ', tabs: ['users', 'settings'] },
+  { label: 'ระบบ', tabs: ['users', 'settings', 'analytics'] },
 ];
 
-// homeBlocks ไม่ใช่แท็บสิทธิ์จริงฝั่ง server (COLLECTION_TAB['homeblocks'] = 'settings')
-// เพราะจัดวางลำดับหน้าแรกถือเป็นสิทธิ์ระดับเดียวกับตั้งค่าเว็บ ไม่ต้องเพิ่มปุ่มสิทธิ์ใหม่ใน .env
-const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings' };
-
-async function uploadImage(file: File): Promise<string> {
-  if (file.size > 5 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกิน 5 MB');
-  const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5);
-  const headers: Record<string, string> = { 'Content-Type': file.type };
-  const token = getApiToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`/api/upload?ext=${ext}`, { method: 'POST', headers, body: file });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'อัพโหลดรูปไม่สำเร็จ');
-  }
-  const data = await res.json();
-  return data.url;
-}
+// homeBlocks/analytics ไม่ใช่แท็บสิทธิ์จริงฝั่ง server (COLLECTION_TAB['homeblocks'] = 'settings', และ
+// GET /api/analytics ใช้ requireTab(...,'settings') เดียวกัน) — ทั้งสองใช้สิทธิ์ระดับ "ตั้งค่าเว็บ" แทน
+// ไม่ต้องเพิ่มปุ่มสิทธิ์ใหม่ใน .env
+const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings', analytics: 'settings' };
 
 const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', date: '', image: '', category: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
@@ -124,13 +111,16 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsError, setSettingsError] = useState('');
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [analyticsDays, setAnalyticsDays] = useState(30);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
 
   // Modal
   const [modal, setModal] = useState<{ open: boolean; mode: 'add' | 'edit'; data: any; activeTab: Tab }>({ open: false, mode: 'add', data: null, activeTab: 'news' });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [adminSearch, setAdminSearch] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -173,6 +163,18 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     if (!isAdmin || allowedTabs.length === 0) return;
     if (!hasTabPermission(tab)) setTab(allowedTabs[0] as Tab);
   }, [isAdmin, tab, allowedTabs.join(',')]);
+
+  // โหลดสถิติเมื่อเปิดแท็บ "สถิติ" หรือเปลี่ยนช่วงวัน — ไม่ต้อง poll ต่อเนื่องเหมือน collection อื่น
+  // (ข้อมูลนับสด flush ทุก 5 นาทีฝั่ง server อยู่แล้ว ไม่จำเป็นต้อง fetch ถี่กว่านั้น)
+  useEffect(() => {
+    if (tab !== 'analytics' || !hasTabPermission('analytics')) return;
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+    fetchAnalytics(analyticsDays)
+      .then(setAnalyticsData)
+      .catch(err => setAnalyticsError(err?.message || 'โหลดข้อมูลสถิติไม่สำเร็จ'))
+      .finally(() => setAnalyticsLoading(false));
+  }, [tab, analyticsDays]);
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);
@@ -538,12 +540,28 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     { key: 'volunteer', label: 'อาสาสมัคร', icon: Heart, count: volunteer.length },
     { key: 'users', label: 'ผู้ดูแล', icon: ShieldCheck },
     { key: 'settings', label: 'ตั้งค่าเว็บ', icon: Settings },
+    { key: 'analytics', label: 'สถิติ', icon: BarChart3 },
   ];
   // แสดงเฉพาะแท็บที่บัญชีนี้มีสิทธิ์ — แยกตามสิทธิ์ของ user (role/allowedTabs)
   const TABS = ALL_TABS.filter(t => hasTabPermission(t.key));
-  // ใช้เลือกสิทธิ์แท็บตอนสร้าง/แก้บัญชีผู้ดูแล — ตัด homeBlocks ออกเพราะไม่ใช่แท็บสิทธิ์จริงฝั่ง server
-  // (homeBlocks map ไปที่สิทธิ์ 'settings' ผ่าน TAB_PERMISSION ด้านบน ไม่ใช่ key สิทธิ์ของตัวเอง)
-  const ADMIN_PERMISSION_TABS = ALL_TABS.filter(t => t.key !== 'homeBlocks');
+  // ใช้เลือกสิทธิ์แท็บตอนสร้าง/แก้บัญชีผู้ดูแล — ตัด homeBlocks/analytics ออกเพราะไม่ใช่แท็บสิทธิ์จริงฝั่ง server
+  // (ทั้งคู่ map ไปที่สิทธิ์ 'settings' ผ่าน TAB_PERMISSION ด้านบน ไม่ใช่ key สิทธิ์ของตัวเอง)
+  const ADMIN_PERMISSION_TABS = ALL_TABS.filter(t => t.key !== 'homeBlocks' && t.key !== 'analytics');
+
+  // ประวัติการแก้ไข — ใช้ audit fields (createdBy/updatedBy/updatedAt) ที่ทุก item มีอยู่แล้ว ไม่ต้องเก็บ
+  // ข้อมูลเพิ่ม แค่รวม 4 collection ที่ subscribe ไว้อยู่แล้วเป็นลิสต์เดียวแล้วเรียงตามเวลาแก้ไขล่าสุด
+  const ACTIVITY_COLLECTIONS: { label: string; items: any[]; titleKey: string }[] = [
+    { label: 'ข่าวสาร', items: news, titleKey: 'title' },
+    { label: 'กิจกรรม', items: events, titleKey: 'title' },
+    { label: 'นโยบาย', items: policies, titleKey: 'title' },
+    { label: 'ทีมพรรค', items: team, titleKey: 'name' },
+  ];
+  const activityLog = ACTIVITY_COLLECTIONS
+    .flatMap(c => c.items.filter((i: any) => i.updatedAt).map((i: any) => ({
+      label: c.label, title: i[c.titleKey] || '(ไม่มีชื่อ)', updatedBy: i.updatedBy, updatedAt: i.updatedAt,
+    })))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 30);
 
   const sortedPolicies = [...policies].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedCategories = [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
@@ -568,6 +586,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
       { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+      { key: 'seoTitle', label: 'SEO: หัวข้อสำหรับ Google/แชร์โซเชียล (ไม่บังคับ — ว่างไว้ใช้หัวข้อข่าวแทน)', type: 'text', maxLength: 200 },
+      { key: 'seoDescription', label: 'SEO: คำอธิบายสำหรับ Google/แชร์โซเชียล (ไม่บังคับ — ว่างไว้ใช้สรุปข่าวแทน)', type: 'textarea', maxLength: 300 },
     ],
     events: [
       { key: 'title', label: 'ชื่อกิจกรรม', type: 'text' },
@@ -588,6 +608,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'featuredHome', label: 'แสดงในหน้าหลัก (เลือกได้สูงสุด 4 นโยบาย)', type: 'toggle' },
       { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+      { key: 'seoTitle', label: 'SEO: หัวข้อสำหรับ Google/แชร์โซเชียล (ไม่บังคับ)', type: 'text', maxLength: 200 },
+      { key: 'seoDescription', label: 'SEO: คำอธิบายสำหรับ Google/แชร์โซเชียล (ไม่บังคับ)', type: 'textarea', maxLength: 300 },
     ],
     team: [
       { key: 'name', label: 'ชื่อ-นามสกุล', type: 'text', maxLength: 100 },
@@ -869,15 +891,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                       </div>
                     ))}
                   </div>
-                  <label className="cursor-pointer inline-flex bg-white/10 hover:bg-brand-neon hover:text-brand-navy border border-white/20 rounded-xl px-4 py-2.5 text-sm font-bold transition-all whitespace-nowrap items-center gap-2">
-                    <Upload size={14} /> เพิ่มรูป
-                    <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try { addHeroSplitSlide(await uploadImage(file)); }
-                      catch (err) { alert(String(err)); }
-                    }} />
-                  </label>
+                  <ImageUploadField value="" onChange={addHeroSplitSlide} allowRemove={false} />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-white/50 mb-1">
@@ -920,15 +934,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                       <p className="text-white/30 text-xs">ยังไม่มีรูป — ตอนนี้ใช้ชุด "2 คอลัมน์" ด้านบนแทนไปก่อนสำหรับโหมดเต็มพื้นที่</p>
                     )}
                   </div>
-                  <label className="cursor-pointer inline-flex bg-white/10 hover:bg-brand-neon hover:text-brand-navy border border-white/20 rounded-xl px-4 py-2.5 text-sm font-bold transition-all whitespace-nowrap items-center gap-2">
-                    <Upload size={14} /> เพิ่มรูป
-                    <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try { addHeroFullSlide(await uploadImage(file)); }
-                      catch (err) { alert(String(err)); }
-                    }} />
-                  </label>
+                  <ImageUploadField value="" onChange={addHeroFullSlide} allowRemove={false} />
                 </div>
               </div>
             </div>
@@ -979,27 +985,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
               {/* QR Code Upload */}
               <div className="mt-6">
                 <label className="block text-xs font-bold text-white/50 mb-2">QR Code โซเชียล</label>
-                {siteSettings.contact.qrCode && (
-                  <div className="relative mb-3 rounded-xl overflow-hidden max-w-[160px]">
-                    <img src={siteSettings.contact.qrCode} alt="QR Code" className="w-full h-auto block rounded-xl border border-white/10" />
-                    <button type="button" onClick={() => setContactInfo('qrCode', '')}
-                      className="absolute top-2 right-2 bg-black/60 hover:bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full transition-colors">
-                      ลบ
-                    </button>
-                  </div>
-                )}
-                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-white/50 hover:text-brand-neon transition-colors">
-                  <Upload size={14} />
-                  {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลด QR Code'}
-                  <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={async e => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setUploading(true);
-                    try { setContactInfo('qrCode', await uploadImage(file)); }
-                    catch (err) { alert(String(err)); }
-                    finally { setUploading(false); e.target.value = ''; }
-                  }} />
-                </label>
+                <ImageUploadField value={siteSettings.contact.qrCode || ''} onChange={v => setContactInfo('qrCode', v)} label="QR Code" />
               </div>
             </div>
 
@@ -1042,27 +1028,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 {/* Image upload */}
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Popup</label>
-                  {siteSettings.popup.image && (
-                    <div className="relative mb-3 rounded-xl overflow-hidden max-w-xs">
-                      <img src={siteSettings.popup.image} alt="popup preview" className="w-full h-auto block rounded-xl border border-white/10" />
-                      <button type="button" onClick={() => setPopup('image', '')}
-                        className="absolute top-2 right-2 bg-black/60 hover:bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full transition-colors">
-                        ลบรูป
-                      </button>
-                    </div>
-                  )}
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-white/50 hover:text-brand-neon transition-colors">
-                    <Upload size={14} />
-                    {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดรูป Popup'}
-                    <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={async e => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setUploading(true);
-                      try { setPopup('image', await uploadImage(file)); }
-                      catch (err) { alert(String(err)); }
-                      finally { setUploading(false); e.target.value = ''; }
-                    }} />
-                  </label>
+                  <ImageUploadField value={siteSettings.popup.image || ''} onChange={v => setPopup('image', v)} label="Popup" />
                 </div>
 
                 {/* Link */}
@@ -1140,10 +1106,6 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                         <>
                           <div className="relative mb-2 rounded-xl overflow-hidden aspect-[21/5]">
                             <img src={imgUrl} alt="" className="w-full h-full object-cover" style={{ objectPosition: pos }} />
-                            <button type="button" onClick={() => setPageInfo(iKey, '')}
-                              className="absolute top-2 right-2 bg-black/60 hover:bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full transition-colors">
-                              ลบรูป
-                            </button>
                           </div>
                           <div className="space-y-2 mb-3 bg-white/5 rounded-xl px-4 py-3">
                             <p className="text-xs font-bold text-white/40 mb-1">ปรับตำแหน่งรูป</p>
@@ -1164,18 +1126,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           </div>
                         </>
                       )}
-                      <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-white/50 hover:text-brand-neon transition-colors">
-                        <Upload size={14} />
-                        {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดรูป Banner'}
-                        <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={async e => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setUploading(true);
-                          try { setPageInfo(iKey, await uploadImage(file)); }
-                          catch (err) { alert(String(err)); }
-                          finally { setUploading(false); e.target.value = ''; }
-                        }} />
-                      </label>
+                      <ImageUploadField value={imgUrl || ''} onChange={v => setPageInfo(iKey, v)} label="Banner" />
                     </div>
                   </React.Fragment>
                   );
@@ -1204,26 +1155,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Banner หน้าเกี่ยวกับพรรค</label>
-                  {siteSettings.about.image && (
-                    <div className="relative mb-3 rounded-xl overflow-hidden aspect-[21/5]">
-                      <img src={siteSettings.about.image} alt="" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => setAbout('image', '')}
-                        className="absolute top-2 right-2 bg-black/60 hover:bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full transition-colors">
-                        ลบรูป
-                      </button>
-                    </div>
-                  )}
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-white/50 hover:text-brand-neon transition-colors">
-                    <Upload size={14} />
-                    {uploading ? 'กำลังอัปโหลด...' : 'อัปโหลดรูป Banner'}
-                    <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={async e => {
-                      const file = e.target.files?.[0]; if (!file) return;
-                      setUploading(true);
-                      try { setAbout('image', await uploadImage(file)); }
-                      catch (err) { alert(String(err)); }
-                      finally { setUploading(false); e.target.value = ''; }
-                    }} />
-                  </label>
+                  <ImageUploadField value={siteSettings.about.image || ''} onChange={v => setAbout('image', v)} label="Banner" />
                 </div>
               </div>
             </div>
@@ -1436,6 +1368,118 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 </div>
               </div>
             )}
+
+            {/* Activity log — ดูว่าใครแก้อะไรเมื่อไหร่ จาก audit fields ที่มีอยู่แล้วทุก item */}
+            <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
+              <h2 className="text-xl font-black mb-6">ประวัติการแก้ไขล่าสุด</h2>
+              {activityLog.length === 0 ? (
+                <p className="text-white/30 text-center py-8">ยังไม่มีประวัติการแก้ไข</p>
+              ) : (
+                <div className="space-y-2">
+                  {activityLog.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-brand-neon bg-brand-neon/10 px-2 py-1 rounded-full shrink-0">{a.label}</span>
+                        <span className="text-sm font-bold truncate">{a.title}</span>
+                      </div>
+                      <div className="text-xs text-white/40 shrink-0 text-right">
+                        <div>{a.updatedBy || '—'}</div>
+                        <div>{new Date(a.updatedAt).toLocaleString('th-TH')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+        ) : tab === 'analytics' ? (
+          <div className="space-y-8">
+            <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+                  <BarChart3 size={22} className="text-brand-neon" /> สถิติผู้เข้าชม
+                </h2>
+                <div className="flex gap-2">
+                  {[7, 30, 90].map(d => (
+                    <button
+                      key={d} onClick={() => setAnalyticsDays(d)}
+                      className={`text-sm font-bold px-4 py-2 rounded-xl border transition-colors ${
+                        analyticsDays === d ? 'bg-brand-neon/20 border-brand-neon text-brand-neon' : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                      }`}
+                    >
+                      {d} วัน
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {analyticsError && (
+                <p className="text-red-400 text-sm bg-red-400/10 border border-red-400/30 rounded-xl px-4 py-3 mb-4">{analyticsError}</p>
+              )}
+
+              {analyticsLoading && !analyticsData ? (
+                <p className="text-white/30 text-center py-16">กำลังโหลด...</p>
+              ) : analyticsData && analyticsData.byDate.length === 0 ? (
+                <p className="text-white/30 text-center py-16">ยังไม่มีข้อมูลผู้เข้าชมในช่วงนี้</p>
+              ) : analyticsData ? (() => {
+                const max = Math.max(1, ...analyticsData.byDate.map(d => d.total));
+                const chartHeight = 180;
+                const barGap = 4;
+                const n = analyticsData.byDate.length;
+                const barWidth = n > 0 ? Math.max(2, (100 / n) - (barGap / 4)) : 0;
+                const totalVisits = analyticsData.byDate.reduce((a, d) => a + d.total, 0);
+                return (
+                  <>
+                    <p className="text-white/40 text-sm mb-4">
+                      รวม <span className="text-brand-neon font-black">{totalVisits.toLocaleString('th-TH')}</span> ครั้ง ในช่วง {analyticsDays} วันล่าสุด
+                    </p>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-8 overflow-x-auto">
+                      <svg viewBox={`0 0 100 ${chartHeight + 20}`} preserveAspectRatio="none" className="w-full" style={{ height: chartHeight + 20, minWidth: n * 8 }}>
+                        {analyticsData.byDate.map((d, i) => {
+                          const barHeight = (d.total / max) * chartHeight;
+                          const x = i * (100 / n);
+                          return (
+                            <g key={d.date}>
+                              <rect
+                                x={x + barGap / 4} y={chartHeight - barHeight}
+                                width={barWidth} height={barHeight}
+                                fill="#E6FF00" opacity={0.85} rx={0.5}
+                              >
+                                <title>{`${d.date}: ${d.total.toLocaleString('th-TH')} ครั้ง`}</title>
+                              </rect>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                      <div className="flex justify-between text-[10px] text-white/30 mt-2">
+                        <span>{analyticsData.byDate[0]?.date}</span>
+                        <span>{analyticsData.byDate[analyticsData.byDate.length - 1]?.date}</span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-lg font-black mb-4">หน้ายอดนิยม</h3>
+                    <div className="space-y-2">
+                      {analyticsData.topPages.length === 0 && (
+                        <p className="text-white/30 text-sm">ไม่มีข้อมูล</p>
+                      )}
+                      {analyticsData.topPages.map(p => {
+                        const topMax = analyticsData.topPages[0]?.count || 1;
+                        return (
+                          <div key={p.path} className="flex items-center gap-3">
+                            <span className="text-xs text-white/50 font-mono w-40 truncate shrink-0" title={p.path}>{p.path}</span>
+                            <div className="flex-1 bg-white/5 rounded-full h-5 overflow-hidden">
+                              <div className="h-full bg-brand-neon/40 rounded-full" style={{ width: `${(p.count / topMax) * 100}%` }} />
+                            </div>
+                            <span className="text-xs font-bold text-white/70 w-14 text-right shrink-0">{p.count.toLocaleString('th-TH')}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })() : null}
+            </div>
           </div>
 
         ) : (
@@ -1460,7 +1504,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </>
                 )}
                 {/* Export CSV */}
-                {(tab === 'newsletter' || tab === 'contact') && (
+                {['newsletter', 'contact', 'news', 'events', 'policies', 'team'].includes(tab) && (
                   <button onClick={() => exportCsv(currentData[tab], `${tab}-${Date.now()}.csv`)}
                     className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-brand-neon/10 border border-brand-neon/30 text-brand-neon hover:bg-brand-neon/20 transition-all">
                     ↓ Export CSV
@@ -1702,34 +1746,11 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                       className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
                     />
                   ) : field.type === 'image-upload' ? (
-                    <div className="flex items-center gap-4">
-                      {modal.data[field.key] && (
-                        <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/20 shrink-0">
-                          <img src={modal.data[field.key]} alt="icon" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                      <div className="flex gap-3 flex-wrap">
-                        <label className={`cursor-pointer border border-white/20 rounded-xl px-4 py-2.5 text-sm font-bold transition-all flex items-center gap-2 ${uploading ? 'opacity-50 cursor-wait bg-white/5' : 'bg-white/10 hover:bg-brand-neon hover:text-brand-navy'}`}>
-                          <Upload size={14} /> {uploading ? 'กำลังอัพโหลด...' : 'อัพโหลดรูป'}
-                          <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={async e => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            setUploading(true);
-                            try {
-                              const url = await uploadImage(file);
-                              setModal(m => ({ ...m, data: { ...m.data, [field.key]: url } }));
-                            } catch (err) { alert(String(err)); }
-                            finally { setUploading(false); }
-                          }} />
-                        </label>
-                        {modal.data[field.key] && (
-                          <button type="button" onClick={() => setModal(m => ({ ...m, data: { ...m.data, [field.key]: '' } }))}
-                            className="bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 rounded-xl px-4 py-2.5 text-sm font-bold text-red-400 transition-all">
-                            ลบรูป
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    <ImageUploadField
+                      value={modal.data[field.key] || ''}
+                      onChange={v => setModal(m => ({ ...m, data: { ...m.data, [field.key]: v } }))}
+                      label={field.label}
+                    />
                   ) : field.type === 'color-picker' ? (
                     <div className="flex items-center gap-4">
                       <input

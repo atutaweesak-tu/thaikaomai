@@ -54,7 +54,13 @@ function isRateLimited(req: IncomingMessage, key: string, maxRequests: number, w
 // ── Login lockout (ต่อบัญชี — กันสลับ IP บรูทฟอร์ซ) ────────────────────────────
 const LOGIN_MAX_FAILS = 5;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 นาที
-const _loginFails = new Map<string, { count: number; lockedUntil: number }>();
+// entry ที่ไม่ได้ fail ซ้ำมานานเกินนี้ถือว่าหมดความหมายแล้ว (sweepLoginFails ลบทิ้งได้) — endpoint นี้ไม่ต้อง
+// login ก่อน ใครก็ยิงได้ ถ้าไม่เคลียร์เอง entry จะค้างสะสมทีละอีเมล(ปลอมก็ได้ ไม่มีต้นทุน)ไปเรื่อยๆ ไม่มีเพดาน
+const LOGIN_FAILS_STALE_MS = 60 * 60 * 1000; // 1 ชั่วโมง
+// เพดานกันบวมเร็วเกินไปในช่วงเวลาสั้นๆ ก่อนถึงรอบ sweep ถัดไป (เช่นโดนยิงอีเมลปลอมจำนวนมากรัวๆ จากหลาย IP
+// สลับกัน ซึ่ง rate-limit ต่อ IP เพียงอย่างเดียวกันไม่ได้) เกินเพดานนี้ทิ้งความพยายามเงียบๆ ไม่กระทบความปลอดภัย
+const LOGIN_FAILS_MAX_ENTRIES = 5000;
+const _loginFails = new Map<string, { count: number; lockedUntil: number; lastFailAt: number }>();
 
 function isAccountLocked(email: string): boolean {
   const rec = _loginFails.get(email);
@@ -64,13 +70,21 @@ function isAccountLocked(email: string): boolean {
   return false;
 }
 function recordLoginFailure(email: string) {
-  const rec = _loginFails.get(email) || { count: 0, lockedUntil: 0 };
+  if (!_loginFails.has(email) && _loginFails.size >= LOGIN_FAILS_MAX_ENTRIES) return;
+  const rec = _loginFails.get(email) || { count: 0, lockedUntil: 0, lastFailAt: 0 };
   rec.count++;
+  rec.lastFailAt = Date.now();
   if (rec.count >= LOGIN_MAX_FAILS) rec.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
   _loginFails.set(email, rec);
 }
 function clearLoginFailures(email: string) {
   _loginFails.delete(email);
+}
+function sweepLoginFails() {
+  const now = Date.now();
+  for (const [email, rec] of _loginFails) {
+    if (now - rec.lastFailAt > LOGIN_FAILS_STALE_MS && now > rec.lockedUntil) _loginFails.delete(email);
+  }
 }
 
 // ── Email Sender ──────────────────────────────────────────────────────────────
@@ -92,6 +106,24 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// ── Publish-window check (ตรงกับ logic ฝั่ง client ใน NewsPage.tsx/NewsSection.tsx) ────
+function isPublicNow(item: any): boolean {
+  if (item.published === false) return false;
+  const now = Date.now();
+  if (item.publishAt && new Date(item.publishAt).getTime() > now) return false;
+  if (item.unpublishAt && new Date(item.unpublishAt).getTime() < now) return false;
+  return true;
+}
+
+// og:image ต้องเป็น URL จริงให้ crawler ดึงได้ — data: URI (base64) ใช้ไม่ได้ ต้อง fallback เป็นโลโก้แทน
+function absoluteImageUrl(host: string, image: string | undefined): string {
+  const fallback = `https://${host}/tkm-logo.png`;
+  if (!image || image.startsWith('data:')) return fallback;
+  if (image.startsWith('http://') || image.startsWith('https://')) return image;
+  if (image.startsWith('/')) return `https://${host}${image}`;
+  return fallback;
 }
 
 // ── Admin accounts (collection "users") ─────────────────────────────────────────
@@ -233,7 +265,7 @@ function loadAdminUsers(rawEnv: Record<string, string>): AdminUser[] {
   }).filter(u => u.email && u.passwordHash);
 }
 
-export function createApiHandlers(env: Record<string, string>, dataDir: string) {
+export function createApiHandlers(env: Record<string, string>, dataDir: string, distDir: string) {
   const mailer = createMailer(env);
   const adminUsers = loadAdminUsers(env);
 
@@ -443,6 +475,31 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
     });
   }
 
+  // ── Media Library ────────────────────────────────────────────
+  // filesystem (public/uploads) คือ source of truth เดียว — ไม่เก็บ collection แยกมา track รายชื่อไฟล์
+  // เพราะจะ drift จากของจริงได้ (เช่นไฟล์ถูกลบนอกระบบ) requireAuth เดียวกับ /api/upload (admin ที่ login แล้วคนไหนก็ได้)
+  function media(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.method !== 'GET') { res.statusCode = 405; res.end('{}'); return; }
+    if (!requireAuth(req, res)) return;
+
+    const uploadsDir = path.resolve(dataDir, '..', 'public/uploads');
+    if (!fs.existsSync(uploadsDir)) { res.end('[]'); return; }
+
+    const allowedExt = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+    const files = fs.readdirSync(uploadsDir)
+      .filter(name => allowedExt.has(path.extname(name).toLowerCase()))
+      .map(name => {
+        const stat = fs.statSync(path.join(uploadsDir, name));
+        return { url: `/uploads/${name}`, size: stat.size, mtime: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime)
+      .slice(0, 200); // พอสำหรับ picker ในหน้า admin — ไม่ต้อง paginate เพิ่มความซับซ้อนตอนนี้
+
+    res.end(JSON.stringify(files));
+  }
+
   // ── Collection API (+ SSE) ────────────────────────────────────
   function data(req: IncomingMessage, res: ServerResponse) {
     const urlPath = (req.url || '').split('?')[0]; // strip query string
@@ -554,6 +611,17 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
           }
 
           const parsedBody = col === 'users' ? usersParsedBody : JSON.parse(body || '{}');
+
+          // Honeypot (เฉพาะฟอร์มสาธารณะ) — ฟิลด์ "website" คนจริงมองไม่เห็น (ดู src/components/Honeypot.tsx)
+          // ถ้ามีค่าแปลว่าเป็นบอทที่กรอกทุกช่อง input ที่เจอแบบไม่สนใจ CSS ตอบเหมือนสำเร็จแต่ไม่บันทึก/
+          // ไม่ส่งอีเมลแจ้งเตือนอะไรเลย เงียบๆ ไม่ tip off ให้บอทรู้ว่าโดนจับ
+          if (PUBLIC_POST_COLLECTIONS.has(col) && parsedBody.website) {
+            res.statusCode = 201;
+            res.end(JSON.stringify({ ok: true }));
+            return;
+          }
+          delete parsedBody.website;
+
           delete parsedBody.createdBy; delete parsedBody.updatedBy; delete parsedBody.createdAt; delete parsedBody.updatedAt;
 
           if (col === 'users') {
@@ -691,11 +759,166 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string) 
     });
   }
 
-  // เคลียร์ session ที่หมดอายุเป็นระยะ กันหน่วยความจำโตไม่หยุด
-  const cleanupInterval = setInterval(purgeExpiredSessions, 30 * 60_000);
-  cleanupInterval.unref?.();
+  // ── SPA HTML renderer (SEO: meta injection สำหรับหน้าข่าว + JSON-LD พื้นฐานทุกหน้า) ──
+  // ทำงานแทน app.get('*', res.sendFile(...)) เดิมใน server/index.ts — อ่าน dist/index.html สดทุก
+  // request (ไฟล์เล็ก ไม่คุ้มทำ cache ให้ซับซ้อนเพิ่ม) แล้วแทนที่ meta tag เฉพาะตอนเป็นหน้าข่าวที่เผยแพร่จริง
+  // เหตุผลที่ต้องทำแบบนี้ (ไม่ใช่แค่แก้ document.title ฝั่ง client เหมือนเดิม): บอทของ Facebook/LINE/Twitter
+  // ที่ดึง preview ตอนแชร์ลิงก์ไม่รัน JavaScript เลย เห็นแค่ HTML ที่ server ส่งมาตรงๆ
+  function renderSpaHtml(req: IncomingMessage, res: ServerResponse) {
+    trackPageview((req.url || '/').split('?')[0]);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    const indexPath = path.join(distDir, 'index.html');
+    let html = fs.readFileSync(indexPath, 'utf-8');
+    const host = req.headers.host || '';
+    const urlPath = (req.url || '').split('?')[0];
 
-  return { login, logout, settingsStream, settings, upload, data };
+    const newsMatch = urlPath.match(/^\/news\/([^/]+)\/?$/);
+    if (newsMatch) {
+      const item = readCollection('news').find((n: any) => n.id === newsMatch[1]);
+      if (item && isPublicNow(item)) {
+        const title = escapeHtml(item.seoTitle || item.title || '');
+        const description = escapeHtml(item.seoDescription || item.summary || '');
+        const image = absoluteImageUrl(host, item.image);
+        html = html
+          .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
+          .replace(/(<meta name="description" content=")[^"]*(")/, `$1${description}$2`)
+          .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
+          .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${description}$2`)
+          .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${image}$2`)
+          .replace(/(<meta property="og:type" content=")[^"]*(")/, `$1article$2`)
+          .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${title}$2`)
+          .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${description}$2`)
+          .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${image}$2`);
+
+        const articleLd = {
+          '@context': 'https://schema.org',
+          '@type': 'NewsArticle',
+          headline: item.title,
+          description: item.summary || '',
+          image,
+          datePublished: item.createdAt || item.date || '',
+          dateModified: item.updatedAt || item.createdAt || item.date || '',
+        };
+        html = html.replace('</head>', `<script type="application/ld+json">${JSON.stringify(articleLd)}</script></head>`);
+      }
+    }
+
+    // Organization JSON-LD — ใส่ทุกหน้า ใช้ข้อมูลจาก settings.contact ที่มีอยู่แล้ว
+    try {
+      const siteSettings = JSON.parse(readSettings());
+      const contact = siteSettings?.contact || {};
+      const orgLd = {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'พรรคไทยก้าวใหม่',
+        url: `https://${host}`,
+        logo: `https://${host}/tkm-logo.png`,
+        ...(contact.email ? { email: contact.email } : {}),
+        ...(contact.phone ? { telephone: contact.phone } : {}),
+        ...(contact.address ? { address: contact.address } : {}),
+        sameAs: [contact.facebook, contact.twitter, contact.instagram, contact.youtube].filter((u: string) => u && u !== '#'),
+      };
+      html = html.replace('</head>', `<script type="application/ld+json">${JSON.stringify(orgLd)}</script></head>`);
+    } catch { /* settings.json แปลกๆ — ข้าม JSON-LD องค์กรไปเฉยๆ ไม่ทำให้หน้าเว็บพังทั้งหน้า */ }
+
+    res.end(html);
+  }
+
+  // ── sitemap.xml — generate สดจากข่าวที่เผยแพร่จริง (เนื้อหาเปลี่ยนตลอดผ่าน admin ทำเป็น static ไม่ได้) ──
+  function sitemap(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    const host = req.headers.host || '';
+    const base = `https://${host}`;
+    const staticPaths = ['/', '/about', '/policies', '/team', '/news', '/contact', '/volunteer', '/privacy'];
+    const newsUrls = readCollection('news').filter(isPublicNow).map((n: any) => `/news/${n.id}`);
+    const urls = [...staticPaths, ...newsUrls];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
+      urls.map(u => `  <url><loc>${base}${u}</loc></url>`).join('\n')
+    }\n</urlset>\n`;
+    res.end(xml);
+  }
+
+  // ── Visitor analytics (ฝังเอง, aggregate เท่านั้น — ไม่มี cookie/fingerprint/เก็บ IP รายคน) ──
+  // นับ pageview ต่อ (วันที่, path) ใน memory ก่อน แล้ว flush ลง data/analytics.json เป็นระยะ (ไม่เขียน
+  // ไฟล์ทุก request เพราะ IO ถี่เกินจำเป็นสำหรับข้อมูลระดับนี้) — trigger จาก renderSpaHtml เท่านั้น จึงนับ
+  // เฉพาะ request หน้าเว็บจริง ไม่รวม /api/*, ไฟล์ static (express.static เสิร์ฟไปก่อนถึง catch-all แล้ว),
+  // /sitemap.xml, /robots.txt เพราะ route พวกนั้นไม่ผ่าน renderSpaHtml
+  const ANALYTICS_MAX_PATHS_PER_DAY = 500; // กัน path สุ่ม (บอทยิงมั่ว) ทำให้ memory บวมไม่มีเพดานระหว่างรอ flush
+  const ANALYTICS_RETENTION_DAYS = 90;
+  const _pageviews = new Map<string, Map<string, number>>(); // date(YYYY-MM-DD) -> path -> count, ล้างทุกครั้งที่ flush
+
+  function trackPageview(urlPath: string) {
+    const date = new Date().toISOString().slice(0, 10);
+    let dayMap = _pageviews.get(date);
+    if (!dayMap) { dayMap = new Map(); _pageviews.set(date, dayMap); }
+    let key = urlPath || '/';
+    if (key.length > 200 || (!dayMap.has(key) && dayMap.size >= ANALYTICS_MAX_PATHS_PER_DAY)) key = '/__other__';
+    dayMap.set(key, (dayMap.get(key) || 0) + 1);
+  }
+
+  function flushAnalytics() {
+    if (_pageviews.size === 0) return;
+    const file = path.join(dataDir, 'analytics.json');
+    let stored: Record<string, Record<string, number>> = {};
+    try { if (fs.existsSync(file)) stored = JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { stored = {}; }
+
+    for (const [date, dayMap] of _pageviews) {
+      const existing = stored[date] || {};
+      for (const [p, count] of dayMap) existing[p] = (existing[p] || 0) + count;
+      stored[date] = existing;
+    }
+    _pageviews.clear();
+
+    const cutoff = new Date(Date.now() - ANALYTICS_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    for (const date of Object.keys(stored)) if (date < cutoff) delete stored[date];
+
+    fs.writeFileSync(file, JSON.stringify(stored), 'utf-8');
+  }
+
+  // GET /api/analytics?days=30 — ใช้สิทธิ์แท็บ "ตั้งค่าเว็บ" (settings) เดียวกัน ไม่สร้าง permission tier ใหม่
+  function analytics(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    if (req.method !== 'GET') { res.statusCode = 405; res.end('{}'); return; }
+    if (!requireTab(req, res, 'settings')) return;
+
+    flushAnalytics(); // ให้เห็นข้อมูลล่าสุดทันทีตอนเปิดดู ไม่ต้องรอรอบ flush ถัดไป
+
+    const url = new URL(req.url || '', 'http://x');
+    const days = Math.min(90, Math.max(1, Number(url.searchParams.get('days')) || 30));
+
+    const file = path.join(dataDir, 'analytics.json');
+    let stored: Record<string, Record<string, number>> = {};
+    try { if (fs.existsSync(file)) stored = JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { stored = {}; }
+
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const dates = Object.keys(stored).filter(d => d >= cutoff).sort();
+
+    const byDate = dates.map(date => {
+      const paths = stored[date];
+      const total = Object.values(paths).reduce((a, b) => a + b, 0);
+      return { date, total };
+    });
+
+    const topPagesMap = new Map<string, number>();
+    for (const date of dates) {
+      for (const [p, count] of Object.entries(stored[date])) {
+        topPagesMap.set(p, (topPagesMap.get(p) || 0) + count);
+      }
+    }
+    const topPages = [...topPagesMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([p, count]) => ({ path: p, count }));
+
+    res.end(JSON.stringify({ byDate, topPages }));
+  }
+
+  // เคลียร์ session ที่หมดอายุ + login-failure entry ที่ค้างนานเกินไปเป็นระยะ กันหน่วยความจำโตไม่หยุด
+  const cleanupInterval = setInterval(() => { purgeExpiredSessions(); sweepLoginFails(); }, 30 * 60_000);
+  cleanupInterval.unref?.();
+  // flush pageview counter ลงไฟล์ทุก 5 นาที (ถี่กว่า cleanupInterval เพราะอยากให้กราฟใน admin ค่อนข้างสด)
+  const analyticsFlushInterval = setInterval(() => flushAnalytics(), 5 * 60_000);
+  analyticsFlushInterval.unref?.();
+
+  return { login, logout, settingsStream, settings, upload, data, renderSpaHtml, sitemap, analytics, media };
 }
 
 export type ApiHandlers = ReturnType<typeof createApiHandlers>;

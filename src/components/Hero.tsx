@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChevronRight, Play } from 'lucide-react';
 import { subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS, HeroSlide } from '../types';
+import { openSafeUrl } from '../utils/safeUrl';
 
 const SLIDE_INTERVAL_MS = 5000;
 
@@ -108,16 +109,7 @@ export default function Hero() {
   );
 
   const currentSlide = slides[slide];
-  const handleSlideClick = () => {
-    const link = currentSlide?.link;
-    if (!link) return;
-    try {
-      const url = new URL(link);
-      if (url.protocol === 'https:' || url.protocol === 'http:') {
-        window.open(link, '_blank', 'noopener,noreferrer');
-      }
-    } catch { /* invalid URL — ignore */ }
-  };
+  const handleSlideClick = () => openSafeUrl(currentSlide?.link);
 
   const carousel = slides.length > 0 && (
     <AnimatePresence mode="wait">

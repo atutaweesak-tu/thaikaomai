@@ -4,10 +4,12 @@ import { motion } from 'motion/react';
 import { Send, Check, UserPlus } from 'lucide-react';
 import { addNewsletterSubscriber, subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+import Honeypot from './Honeypot';
 
 export default function CTASection() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [email, setEmail] = useState('');
+  const [website, setWebsite] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +24,7 @@ export default function CTASection() {
     if (!email || !EMAIL_RE.test(email)) return;
     setLoading(true);
     try {
-      await addNewsletterSubscriber(email);
+      await addNewsletterSubscriber(email, website);
       setSent(true);
       setEmail('');
     } finally {
@@ -55,6 +57,7 @@ export default function CTASection() {
             </div>
           ) : (
             <div className="flex flex-col md:flex-row gap-4 justify-center max-w-lg mx-auto">
+              <Honeypot value={website} onChange={setWebsite} />
               <input
                 type="email"
                 value={email}

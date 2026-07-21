@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Facebook, Twitter, Instagram, Youtube, Mail, MapPin, Phone } from 'lucide-react';
 import { subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { isSafeHttpUrl } from '../utils/safeUrl';
 
 export default function Footer() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
@@ -26,16 +27,16 @@ export default function Footer() {
               {footer.description}
             </p>
             <div className="flex gap-4">
-              <a href={contact.facebook} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.facebook) ? contact.facebook : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Facebook size={18} />
               </a>
-              <a href={contact.twitter} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.twitter) ? contact.twitter : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Twitter size={18} />
               </a>
-              <a href={contact.instagram} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.instagram) ? contact.instagram : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Instagram size={18} />
               </a>
-              <a href={contact.youtube} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.youtube) ? contact.youtube : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Youtube size={18} />
               </a>
             </div>

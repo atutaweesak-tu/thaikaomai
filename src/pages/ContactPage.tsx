@@ -3,10 +3,13 @@ import { motion } from 'motion/react';
 import { Mail, Phone, MapPin, Send, Facebook, Twitter, Instagram, Youtube } from 'lucide-react';
 import { addContactMessage, subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { isSafeHttpUrl } from '../utils/safeUrl';
+import Honeypot from '../components/Honeypot';
 
 export default function ContactPage() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [website, setWebsite] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -25,7 +28,7 @@ export default function ContactPage() {
     if (!EMAIL_RE.test(form.email)) return;
     setStatus('sending');
     try {
-      await addContactMessage({ name: form.name, email: form.email, message: `${form.subject ? `[${form.subject}] ` : ''}${form.message}` });
+      await addContactMessage({ name: form.name, email: form.email, message: `${form.subject ? `[${form.subject}] ` : ''}${form.message}` }, website);
       setStatus('sent');
       setForm({ name: '', email: '', subject: '', message: '' });
     } catch (err: any) {
@@ -74,6 +77,7 @@ export default function ContactPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  <Honeypot value={website} onChange={setWebsite} />
                   <fieldset disabled={status === 'sending'} className="space-y-6 disabled:opacity-60">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -188,25 +192,25 @@ export default function ContactPage() {
             <div className="bg-brand-neon/10 border border-brand-neon/20 rounded-[40px] p-8">
               <h2 className="text-2xl font-black tracking-tighter mb-6">โซเชียลมีเดีย</h2>
               <div className="grid grid-cols-2 gap-4">
-                {contact.facebook && (
+                {isSafeHttpUrl(contact.facebook) && (
                   <a href={contact.facebook} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 bg-white/5 hover:bg-brand-neon hover:text-brand-navy rounded-2xl px-4 py-3 transition-all font-bold text-sm">
                     <Facebook size={18} /> Facebook
                   </a>
                 )}
-                {contact.twitter && (
+                {isSafeHttpUrl(contact.twitter) && (
                   <a href={contact.twitter} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 bg-white/5 hover:bg-brand-neon hover:text-brand-navy rounded-2xl px-4 py-3 transition-all font-bold text-sm">
                     <Twitter size={18} /> Twitter
                   </a>
                 )}
-                {contact.instagram && (
+                {isSafeHttpUrl(contact.instagram) && (
                   <a href={contact.instagram} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 bg-white/5 hover:bg-brand-neon hover:text-brand-navy rounded-2xl px-4 py-3 transition-all font-bold text-sm">
                     <Instagram size={18} /> Instagram
                   </a>
                 )}
-                {contact.youtube && (
+                {isSafeHttpUrl(contact.youtube) && (
                   <a href={contact.youtube} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 bg-white/5 hover:bg-brand-neon hover:text-brand-navy rounded-2xl px-4 py-3 transition-all font-bold text-sm">
                     <Youtube size={18} /> YouTube

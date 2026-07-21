@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Send, Check, Heart } from 'lucide-react';
 import { addVolunteer } from '../services/dataService';
+import Honeypot from '../components/Honeypot';
 
 const PROVINCES = [
   'กรุงเทพมหานคร','กระบี่','กาญจนบุรี','กาฬสินธุ์','กำแพงเพชร','ขอนแก่น','จันทบุรี','ฉะเชิงเทรา',
@@ -20,6 +21,7 @@ const EMPTY = { name: '', phone: '', email: '', province: '', skills: '', messag
 
 export default function VolunteerPage() {
   const [form, setForm] = useState(EMPTY);
+  const [website, setWebsite] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +38,7 @@ export default function VolunteerPage() {
     if (!PHONE_RE.test(form.phone)) { setError('รูปแบบเบอร์โทรไม่ถูกต้อง'); return; }
     setLoading(true);
     try {
-      await addVolunteer(form);
+      await addVolunteer(form, website);
       setSent(true);
       setForm(EMPTY);
     } catch {
@@ -86,6 +88,7 @@ export default function VolunteerPage() {
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-3xl p-8 space-y-5">
+              <Honeypot value={website} onChange={setWebsite} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-white/60 mb-2">ชื่อ-นามสกุล *</label>

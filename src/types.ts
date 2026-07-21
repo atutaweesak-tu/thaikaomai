@@ -18,6 +18,8 @@ export interface Policy extends AuditFields {
   publishAt?: string;
   unpublishAt?: string;
   featuredHome?: boolean;
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 export interface TeamMember extends AuditFields {
@@ -43,6 +45,8 @@ export interface NewsItem extends AuditFields {
   published?: boolean;
   publishAt?: string;
   unpublishAt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 export interface EventItem extends AuditFields {
@@ -293,4 +297,9 @@ export interface VolunteerItem {
   skills: string;
   message: string;
   submittedAt: string;
+}
+
+export interface AnalyticsData {
+  byDate: { date: string; total: number }[];
+  topPages: { path: string; count: number }[];
 }

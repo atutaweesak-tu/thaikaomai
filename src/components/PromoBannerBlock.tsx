@@ -2,21 +2,14 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { PageBlock } from '../types';
+import { openSafeUrl } from '../utils/safeUrl';
 
 // key?: ไม่ได้ใช้จริงในตัว component — ใส่ไว้เฉยๆ เพราะโปรเจกต์นี้ไม่มี @types/react
 // TS เลยไม่รู้ว่า "key" เป็น prop พิเศษที่ JSX อนุญาตเสมอ (ต่างจาก component อื่นที่ไม่มี props เลยเลยไม่ชนปัญหานี้)
 export default function PromoBannerBlock({ block }: { block: PageBlock; key?: string }) {
   if (!block.image && !block.title) return null;
 
-  const handleClick = () => {
-    if (!block.link) return;
-    try {
-      const url = new URL(block.link);
-      if (url.protocol === 'https:' || url.protocol === 'http:') {
-        window.open(block.link, '_blank', 'noopener,noreferrer');
-      }
-    } catch { /* invalid URL — ignore */ }
-  };
+  const handleClick = () => openSafeUrl(block.link);
 
   return (
     <section className="py-24">

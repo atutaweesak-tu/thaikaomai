@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { openSafeUrl } from '../utils/safeUrl';
 
 const DISMISS_KEY_PREFIX = 'tkm_popup_dismissed_';
 
@@ -47,16 +48,7 @@ export default function PopupBanner() {
     setVisible(false);
   };
 
-  const handleImageClick = () => {
-    const link = settings.popup.link;
-    if (!link) return;
-    try {
-      const url = new URL(link);
-      if (url.protocol === 'https:' || url.protocol === 'http:') {
-        window.open(link, '_blank', 'noopener,noreferrer');
-      }
-    } catch { /* invalid URL — ignore */ }
-  };
+  const handleImageClick = () => openSafeUrl(settings.popup.link);
 
   return (
     <AnimatePresence>
