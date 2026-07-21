@@ -7,6 +7,7 @@ import { subscribeToNews, subscribeToEvents, addNewsletterSubscriber, subscribeT
 import { NewsItem, EventItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
 import { NewsCardSkeleton } from '../components/Skeleton';
 import Honeypot from '../components/Honeypot';
+import YouTubeEmbed from '../components/YouTubeEmbed';
 
 export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -217,6 +218,9 @@ export default function NewsPage() {
                           <span>{event.time}</span>
                         </div>
                       </div>
+                      {event.videoUrl && (
+                        <YouTubeEmbed url={event.videoUrl} title={event.title} className="mt-4" />
+                      )}
                     </div>
                   ))}
                 </div>

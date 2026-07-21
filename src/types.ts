@@ -47,6 +47,7 @@ export interface NewsItem extends AuditFields {
   unpublishAt?: string;
   seoTitle?: string;
   seoDescription?: string;
+  videoUrl?: string;
 }
 
 export interface EventItem extends AuditFields {
@@ -58,6 +59,7 @@ export interface EventItem extends AuditFields {
   published?: boolean;
   publishAt?: string;
   unpublishAt?: string;
+  videoUrl?: string;
 }
 
 /** หมวดหมู่ข่าว — จัดการได้จากหน้า Admin แทนการพิมพ์ freetext */

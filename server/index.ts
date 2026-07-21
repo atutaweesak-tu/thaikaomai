@@ -33,6 +33,7 @@ const CSP = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
   "connect-src 'self'",
+  "frame-src https://www.youtube-nocookie.com", // ฝังคลิป YouTube ในหน้าข่าว/กิจกรรม (ดู YouTubeEmbed.tsx)
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

@@ -6,6 +6,7 @@ import { subscribeToNews } from '../services/dataService';
 import { NewsItem } from '../types';
 import { NEWS as FALLBACK } from '../constants';
 import { SkeletonBox } from '../components/Skeleton';
+import YouTubeEmbed from '../components/YouTubeEmbed';
 
 export default function NewsDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -105,6 +106,13 @@ export default function NewsDetailPage() {
           <p className="text-xl text-brand-neon/80 font-medium leading-relaxed mb-10 border-l-4 border-brand-neon pl-6">
             {article.summary}
           </p>
+
+          {/* Video */}
+          {article.videoUrl && (
+            <div className="mb-10">
+              <YouTubeEmbed url={article.videoUrl} title={article.title} />
+            </div>
+          )}
 
           {/* Content */}
           <div className="text-white/70 text-lg leading-relaxed whitespace-pre-wrap">

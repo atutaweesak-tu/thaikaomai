@@ -583,6 +583,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
           ...(modal.data?.category ? [modal.data.category] : []), // กันค่าเก่าที่ไม่อยู่ในลิสต์หายไปจากหน้าจอ
         ])),
       },
+      { key: 'videoUrl', label: 'ลิงก์วิดีโอ YouTube (ไม่บังคับ) — เช่น https://youtube.com/watch?v=...', type: 'text' },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
       { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
@@ -594,6 +595,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'date', label: 'วันที่', type: 'text' },
       { key: 'location', label: 'สถานที่', type: 'text' },
       { key: 'time', label: 'เวลา', type: 'text' },
+      { key: 'videoUrl', label: 'ลิงก์วิดีโอ YouTube (ไม่บังคับ) — เช่น https://youtube.com/watch?v=...', type: 'text' },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
       { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
