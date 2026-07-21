@@ -11,6 +11,7 @@ coverage/
 # (contact/newsletter/volunteer จะมีข้อมูลส่วนบุคคลจริงทันทีที่มีคนส่งฟอร์ม)
 data/
 public/uploads/
+backups/
 
 # Claude Code local settings — เฉพาะเครื่องนี้
 .claude/settings.local.json

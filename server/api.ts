@@ -281,14 +281,19 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     collectionQueues.set(col, next.catch(() => {}));
   }
 
-  // SSE clients per collection
-  const sseClients: Record<string, Set<ServerResponse>> = {};
+  // SSE clients per collection — ค่า boolean คือ client นี้ login แล้วหรือไม่ ใช้กรอง item ที่ยังไม่
+  // เผยแพร่ (isPublicNow) ออกก่อนส่งให้ client ที่ไม่ได้ login เวลามีการแก้ไขสด (ดู broadcastCollection)
+  const sseClients: Record<string, Map<ServerResponse, boolean>> = {};
 
   function broadcastCollection(col: string, items: any[]) {
-    const payload = col === 'users' ? items.map(stripPasswordHash) : items;
-    sseClients[col]?.forEach(client => {
-      try { client.write(`data: ${JSON.stringify(payload)}\n\n`); }
-      catch { sseClients[col].delete(client); }
+    const clients = sseClients[col];
+    if (!clients) return;
+    const fullPayload = col === 'users' ? items.map(stripPasswordHash) : items;
+    // client สาธารณะ (ไม่ login) เห็นเฉพาะ item ที่เผยแพร่จริงเท่านั้น — กันหลุด draft ผ่าน live update
+    const publicPayload = col === 'users' ? [] : items.filter(isPublicNow);
+    clients.forEach((isAuthed, client) => {
+      try { client.write(`data: ${JSON.stringify(isAuthed ? fullPayload : publicPayload)}\n\n`); }
+      catch { clients.delete(client); }
     });
   }
 
@@ -524,14 +529,18 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     if (idOrStream === 'stream') {
       if (col === 'users') { if (!requireTab(req, res, 'users')) return; }
       else if (isProtected && !requireAuth(req, res)) return;
+      // client ที่ไม่ได้ login (เว็บสาธารณะ) เห็นเฉพาะ item ที่เผยแพร่จริง — ตัด draft/unpublished ออกทั้ง
+      // payload แรกตอนเปิด stream และทุกครั้งที่มีการแก้ไขสดผ่าน broadcastCollection ด้านบน
+      const isAuthed = col !== 'users' && !!getSession(req);
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
-      const initial = col === 'users' ? readCollection(col).map(stripPasswordHash) : readCollection(col);
+      const allItems = readCollection(col);
+      const initial = col === 'users' ? allItems.map(stripPasswordHash) : (isAuthed ? allItems : allItems.filter(isPublicNow));
       res.write(`data: ${JSON.stringify(initial)}\n\n`);
-      if (!sseClients[col]) sseClients[col] = new Set();
-      sseClients[col].add(res);
+      if (!sseClients[col]) sseClients[col] = new Map();
+      sseClients[col].set(res, isAuthed);
       req.on('close', () => sseClients[col]?.delete(res));
       return;
     }
@@ -552,7 +561,11 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
         res.end(JSON.stringify(readCollection(col).map(stripPasswordHash))); return;
       }
       if (isProtected && !requireAuth(req, res)) return;
-      res.end(JSON.stringify(readCollection(col))); return;
+      // ไม่ login (เว็บสาธารณะ/มือถือในอนาคต) เห็นเฉพาะ item ที่เผยแพร่จริง — เดิมโค้ดจุดนี้ส่งทั้ง
+      // collection กลับไปตรงๆ ไม่กรอง published/publishAt/unpublishAt เลย ทำให้ draft หลุดผ่าน API ได้
+      // แม้หน้าเว็บจะกรองด้วย client-side logic อยู่แล้วก็ตาม (เข้าถึงตรงผ่าน curl/มือถือได้อยู่ดี)
+      const items = readCollection(col);
+      res.end(JSON.stringify(getSession(req) ? items : items.filter(isPublicNow))); return;
     }
 
     if (col === 'users') {

@@ -2,6 +2,7 @@ node_modules
 dist
 data
 public/uploads
+backups
 .env
 .env.local
 .git
