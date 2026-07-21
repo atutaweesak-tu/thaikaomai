@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Calendar, MapPin, Clock, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, Clock, ArrowRight, Newspaper } from 'lucide-react';
 import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
 import { subscribeToNews, subscribeToEvents } from '../services/dataService';
 import { NewsItem, EventItem } from '../types';
@@ -67,14 +67,18 @@ export default function NewsSection() {
                   viewport={{ once: true }}
                   className="group cursor-pointer shrink-0 w-[85%] snap-center md:w-auto md:shrink"
                 >
-                  <div className="aspect-[16/9] rounded-3xl overflow-hidden mb-6 border border-white/10">
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                    />
+                  <div className="aspect-[16/9] rounded-3xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        referrerPolicy="no-referrer"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Newspaper size={40} strokeWidth={1} className="text-white/15" />
+                    )}
                   </div>
                   <div className="flex items-center gap-4 mb-4">
                     <span className="bg-brand-neon/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Calendar, MapPin, Clock, Search } from 'lucide-react';
+import { Calendar, MapPin, Clock, Search, Newspaper } from 'lucide-react';
 import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
 import { subscribeToNews, subscribeToEvents, addNewsletterSubscriber, subscribeToSiteSettings, fetchCategories } from '../services/dataService';
 import { NewsItem, EventItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } from '../types';
@@ -169,14 +169,18 @@ export default function NewsPage() {
                   className="group"
                 >
                   <Link to={`/news/${item.id}`}>
-                    <div className="aspect-[21/9] rounded-[40px] overflow-hidden mb-8 border border-white/10">
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                      />
+                    <div className="aspect-[21/9] rounded-[40px] overflow-hidden mb-8 border border-white/10 bg-white/5 flex items-center justify-center">
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Newspaper size={48} strokeWidth={1} className="text-white/15" />
+                      )}
                     </div>
                   </Link>
                   <div className="flex items-center gap-4 mb-6">
