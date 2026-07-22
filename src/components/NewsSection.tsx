@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Calendar, MapPin, Clock, ArrowRight, Newspaper } from 'lucide-react';
 import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
@@ -50,51 +51,52 @@ export default function NewsSection() {
                 NEWS & <br />
                 <span className="text-brand-neon">UPDATES.</span>
               </h2>
-              <button className="text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all">
+              <Link to="/news" className="text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all">
                 All News <ArrowRight size={20} />
-              </button>
+              </Link>
             </div>
 
             {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap แทน stack เต็มความกว้างทีละใบ (การ์ดสูงเพราะมีรูป ทำให้
                 หน้ายาวมากถ้า stack) — จอ md ขึ้นไปกลับไปใช้ grid ปกติเหมือนเดิม ไม่กระทบ desktop */}
             <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 md:gap-8 md:overflow-visible">
               {visibleNews.map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  className="group cursor-pointer shrink-0 w-[85%] snap-center md:w-auto md:shrink"
-                >
-                  <div className="aspect-[16/9] rounded-3xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Newspaper size={40} strokeWidth={1} className="text-white/15" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 mb-4">
-                    <span className="bg-brand-neon/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">
-                      {item.category}
-                    </span>
-                    <span className="text-white/40 text-xs font-medium">
-                      {item.date}
-                    </span>
-                  </div>
-                  <h3 className="text-2xl font-black tracking-tighter mb-4 group-hover:text-brand-neon transition-colors">
-                    {item.title}
-                  </h3>
-                  <p className="text-white/50 text-sm leading-relaxed mb-6">
-                    {item.summary}
-                  </p>
-                </motion.div>
+                <Link key={item.id} to={`/news/${item.id}`} className="shrink-0 w-[85%] snap-center md:w-auto md:shrink">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    viewport={{ once: true }}
+                    className="group cursor-pointer"
+                  >
+                    <div className="aspect-[16/9] rounded-3xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <Newspaper size={40} strokeWidth={1} className="text-white/15" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 mb-4">
+                      <span className="bg-brand-neon/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">
+                        {item.category}
+                      </span>
+                      <span className="text-white/40 text-xs font-medium">
+                        {item.date}
+                      </span>
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tighter mb-4 group-hover:text-brand-neon transition-colors">
+                      {item.title}
+                    </h3>
+                    <p className="text-white/50 text-sm leading-relaxed mb-6">
+                      {item.summary}
+                    </p>
+                  </motion.div>
+                </Link>
               ))}
             </div>
           </div>
