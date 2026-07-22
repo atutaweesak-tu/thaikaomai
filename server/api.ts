@@ -4,13 +4,15 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import type { ServerResponse, IncomingMessage } from 'http';
 import nodemailer from 'nodemailer';
+import { notifyNewsPublished } from './push';
 
 // ── Collections ที่เป็นข้อมูลส่วนบุคคล (PII) — อ่านได้เฉพาะ admin ที่ login แล้ว ─────
 // หมายเหตุ: 'users' ไม่อยู่ในนี้แล้ว เพราะต้องการ requireTab('users') โดยเฉพาะ ไม่ใช่แค่ login
 // ธรรมดา (requireAuth) — ดู branch col === 'users' ใน data() แทน
 const PROTECTED_READ_COLLECTIONS = new Set(['contact', 'volunteer', 'newsletter']);
 // Collections ที่ใครก็ส่งฟอร์มเข้ามาได้โดยไม่ต้อง login (public forms)
-const PUBLIC_POST_COLLECTIONS = new Set(['contact', 'newsletter', 'volunteer']);
+// "pushTokens" อยู่ในนี้ด้วย — แอปมือถือลงทะเบียน push token ของตัวเองโดยไม่ต้อง login เหมือนกัน
+const PUBLIC_POST_COLLECTIONS = new Set(['contact', 'newsletter', 'volunteer', 'pushTokens']);
 
 // ── Rate Limiter (IP-based, ใช้ทั่วไป) ──────────────────────────────────────────
 const _rateMap = new Map<string, { count: number; resetAt: number }>();
@@ -557,6 +559,11 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     // "sessions" ไม่ใช่ collection สาธารณะ — เป็นไฟล์ persist bearer token ของ admin (ดู Session Store
     // ด้านบน) ถ้าปล่อยให้เส้นทางนี้อ่าน sessions.json ตรงๆ จะหลุด token ทุกคนออกทาง GET ที่ไม่ต้อง login เลย
     if (col === 'sessions') { res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบ endpoint นี้' })); return; }
+    // "pushTokens" เก็บ push token ของเครื่องผู้ใช้แต่ละคน — ไม่ใช่ collection สาธารณะสำหรับอ่านเหมือน
+    // news/events (ที่ยอม GET แบบเผยแพร่แล้วได้) มี endpoint POST สำหรับลงทะเบียน token เท่านั้น เพราะ
+    // item พวกนี้ไม่มี field "published" เลย ถ้าปล่อยให้ไหลลง GET path ทั่วไปด้านล่าง isPublicNow จะมองว่า
+    // "เผยแพร่" หมดทุกอัน หลุด token ทุกเครื่องออกทาง GET ที่ไม่ต้อง login เลย
+    if (col === 'pushTokens' && req.method !== 'POST') { res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบ endpoint นี้' })); return; }
 
     res.setHeader('Cache-Control', 'no-store');
     const isProtected = PROTECTED_READ_COLLECTIONS.has(col);
@@ -667,6 +674,30 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
       try {
         let items = readCollection(col);
 
+        if (req.method === 'POST' && col === 'pushTokens') {
+          // limit หลวมกว่าฟอร์มสาธารณะทั่วไป (contact/newsletter/volunteer) เพราะแอปอาจลงทะเบียนซ้ำ
+          // ทุกครั้งที่เปิดแอป และหลายเครื่องอาจอยู่หลัง IP เดียวกัน (NAT บ้าน/ออฟฟิศ)
+          if (isRateLimited(req, `pushTokens:${getClientIp(req)}`, 20, 600_000)) {
+            res.statusCode = 429; res.end(JSON.stringify({ error: 'ลงทะเบียนบ่อยเกินไป กรุณารอสักครู่' })); return;
+          }
+          const parsedBody = JSON.parse(body || '{}');
+          const token = String(parsedBody.token || '');
+          const platform = parsedBody.platform === 'ios' || parsedBody.platform === 'android' ? parsedBody.platform : null;
+          if (!/^ExponentPushToken\[.+\]$/.test(token) || !platform) {
+            res.statusCode = 400; res.end(JSON.stringify({ error: 'ข้อมูล token ไม่ถูกต้อง' })); return;
+          }
+          const nowIso = new Date().toISOString();
+          const existingIdx = items.findIndex((t: any) => t.token === token);
+          if (existingIdx >= 0) {
+            items[existingIdx] = { ...items[existingIdx], platform, lastSeenAt: nowIso };
+          } else {
+            items = [{ id: `pt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, token, platform, createdAt: nowIso, lastSeenAt: nowIso }, ...items];
+          }
+          writeCollection(col, items);
+          res.statusCode = 201; res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+
         if (req.method === 'POST') {
           // Rate limit ฟอร์มสาธารณะ (3 requests / 10 min per IP)
           if (PUBLIC_POST_COLLECTIONS.has(col) && isRateLimited(req, `${col}:${getClientIp(req)}`, 3, 600_000)) {
@@ -743,6 +774,10 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
             );
           }
 
+          // ข่าวที่สร้างใหม่แล้วเผยแพร่เลย (ไม่ใช่ draft) — แจ้งเตือน push ทันที ทำแบบ fire-and-forget
+          // ไม่ await เพื่อไม่ให้การตอบกลับ admin ช้าลงหรือ fail ตามไปด้วยถ้า push service ล่ม
+          if (col === 'news' && isPublicNow(newItem)) notifyNewsPublished(dataDir, newItem);
+
           res.statusCode = 201;
           res.end(JSON.stringify(col === 'users' ? stripPasswordHash(newItem) : newItem));
 
@@ -792,12 +827,16 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
             else delete update.passwordHash; // กันไม่ให้ client ส่ง passwordHash มาทับเองได้
           }
 
+          const wasPublicBefore = col === 'news' && isPublicNow(items[idx]);
           items[idx] = {
             ...items[idx], ...update,
             ...(session ? { updatedBy: session.email, updatedAt: new Date().toISOString() } : {}),
           };
           writeCollection(col, items);
           broadcastCollection(col, items);
+          // แจ้งเตือนเฉพาะตอนข่าว "เปลี่ยนจาก draft เป็นเผยแพร่" ในการบันทึกครั้งนี้เท่านั้น — กันไม่ให้ยิงซ้ำ
+          // ทุกครั้งที่ admin แก้ไขข่าวที่เผยแพร่อยู่แล้ว (เช่น แก้ตัวสะกด)
+          if (col === 'news' && !wasPublicBefore && isPublicNow(items[idx])) notifyNewsPublished(dataDir, items[idx]);
           res.end('{"ok":true}');
 
         } else if (req.method === 'DELETE' && idOrStream) {

@@ -59,6 +59,27 @@ app.get('/sitemap.xml', handlers.sitemap);
 app.get('/api/analytics', handlers.analytics);
 app.get('/api/media', handlers.media);
 
+// Android App Links verification — ให้แอปมือถือ (thaikaomai-app) เปิดลิงก์ /news/* และ /events/*
+// ตรงเข้าแอปแทนเบราว์เซอร์ ได้ SHA-256 fingerprint จาก EAS build credentials (Android upload keystore)
+// ไฟล์นี้ใส่เป็น route ตรงๆ (ไม่ใช้ public/) กัน frontend rebuild ทับ/ลบไปโดยไม่ตั้งใจ
+// หมายเหตุ: ยังไม่มีไฟล์ apple-app-site-association เพราะยังไม่มี Apple Developer Program account —
+// เพิ่มทีหลังถ้าตั้ง iOS build จริง (ต้องใช้ Team ID จาก Apple)
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json([
+    {
+      relation: ['delegate_permission/common.handle_all_urls'],
+      target: {
+        namespace: 'android_app',
+        package_name: 'th.or.thaikaomai.app',
+        sha256_cert_fingerprints: [
+          '52:70:74:B7:D5:31:B0:7D:03:8A:A9:B1:5D:86:83:61:85:26:38:26:A7:7D:CA:A5:7D:C6:CB:0D:06:2A:05:E1',
+        ],
+      },
+    },
+  ]);
+});
+
 // express.static เสิร์ฟ dist/index.html ให้ "/" ไปแล้วก่อนถึง catch-all ด้านล่าง (ไฟล์ static ทั่วไป
 // เช่น robots.txt/รูป/ไอคอนยังผ่านทางนี้ได้ปกติ) — ยกเว้น index.html ที่ตัดออกเพื่อให้ทุก route (รวม "/")
 // ไปผ่าน renderSpaHtml เสมอ จะได้แทรก meta/JSON-LD ได้สม่ำเสมอทุกหน้า ไม่ใช่แค่หน้าข่าว
