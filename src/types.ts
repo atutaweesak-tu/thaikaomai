@@ -282,6 +282,21 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
 };
 
+export interface PollOption {
+  id: string;
+  label: string;
+  votes: number;
+}
+
+export interface Poll extends AuditFields {
+  id: string;
+  question: string;
+  options: PollOption[];
+  published?: boolean;
+  publishAt?: string;
+  unpublishAt?: string;
+}
+
 export interface ContactMessage {
   id: string;
   name: string;

@@ -27,6 +27,7 @@ function localApiPlugin(): Plugin {
       server.middlewares.use('/api/settings', handlers.settings);
       server.middlewares.use('/api/upload', handlers.upload);
       server.middlewares.use('/api/data', handlers.data);
+      server.middlewares.use('/api/polls', handlers.pollVote);
       server.middlewares.use('/api/analytics', handlers.analytics);
       server.middlewares.use('/api/media', handlers.media);
     },

@@ -5,6 +5,8 @@ import TeamSection from '../components/TeamSection';
 import NewsSection from '../components/NewsSection';
 import CTASection from '../components/CTASection';
 import PromoBannerBlock from '../components/PromoBannerBlock';
+import PollWidget from '../components/PollWidget';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { DEFAULT_HOME_BLOCKS } from '../constants';
 import { subscribeToHomeBlocks } from '../services/dataService';
 import { PageBlock } from '../types';
@@ -44,6 +46,10 @@ export default function HomePage() {
   return (
     <main>
       {visibleBlocks.map(renderBlock)}
+      {/* โพลสอบถามความคิดเห็น — คงที่ ไม่ผูกกับลำดับ PageBlock เหมือน section อื่นด้านบน */}
+      <ErrorBoundary fallback={null}>
+        <PollWidget />
+      </ErrorBoundary>
     </main>
   );
 }

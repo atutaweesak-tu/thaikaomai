@@ -1,4 +1,4 @@
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData, Poll } from '../types';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 
@@ -127,6 +127,26 @@ export const subscribeToPolicies = (cb: (p: Policy[]) => void) => subscribeToCol
 export const addPolicy = (policy: Omit<Policy, 'id'>) => apiAdd('policies', policy);
 export const updatePolicy = (id: string, policy: Partial<Policy>) => apiUpdate('policies', id, policy);
 export const deletePolicy = (id: string) => apiDelete('policies', id);
+
+// ─── POLLS ────────────────────────────────────────────────────────────────────
+
+export const subscribeToPolls = (cb: (p: Poll[]) => void) => subscribeToCollection<Poll>('polls', cb);
+export const addPoll = (poll: Omit<Poll, 'id'>) => apiAdd('polls', poll);
+export const updatePoll = (id: string, poll: Partial<Poll>) => apiUpdate('polls', id, poll);
+export const deletePoll = (id: string) => apiDelete('polls', id);
+
+// โหวตเป็น public endpoint แยกต่างหาก (/api/polls/:id/vote) ไม่ใช่ apiUpdate — เพราะ apiUpdate
+// (PUT /api/data/polls/:id) ต้อง login เสมอ ส่วนการโหวตต้องเปิดให้ผู้เข้าชมที่ไม่ login (รวมแอปมือถือ) ยิงได้
+export async function castPollVote(pollId: string, optionId: string): Promise<Poll> {
+  const res = await fetch(`/api/polls/${pollId}/vote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ optionId }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error || 'โหวตไม่สำเร็จ');
+  return body as Poll;
+}
 
 // ─── TEAM ─────────────────────────────────────────────────────────────────────
 

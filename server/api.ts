@@ -203,12 +203,13 @@ function requireAuth(req: IncomingMessage, res: ServerResponse): boolean {
 
 // ── Tab-based permissions ───────────────────────────────────────────────────────
 // รายชื่อแท็บทั้งหมดในหน้า Admin — ใช้กำหนดสิทธิ์ต่อ admin แต่ละคน (ผ่าน ADMIN_n_TABS ใน .env)
-const ALL_TABS = ['news', 'events', 'policies', 'team', 'newsletter', 'contact', 'volunteer', 'users', 'settings'];
+const ALL_TABS = ['news', 'events', 'policies', 'team', 'polls', 'newsletter', 'contact', 'volunteer', 'users', 'settings'];
 // Admin ทั่วไป (role=admin) ที่ไม่ได้ตั้ง ADMIN_n_TABS เอง จะได้สิทธิ์ทุกแท็บ ยกเว้น settings/users
 const DEFAULT_ADMIN_TABS = ALL_TABS.filter(t => t !== 'settings' && t !== 'users');
 // collection (/api/data/:col) แต่ละอันผูกกับแท็บไหนในหน้า admin
 const COLLECTION_TAB: Record<string, string> = {
   news: 'news', categories: 'news', events: 'events', policies: 'policies', team: 'team',
+  polls: 'polls',
   newsletter: 'newsletter', contact: 'contact', volunteer: 'volunteer', users: 'users',
   homeblocks: 'settings',
 };
@@ -863,6 +864,77 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     });
   }
 
+  // ── Poll voting (public, ไม่ต้อง login) ──────────────────────────────────────
+  // แยกจาก data()/generic CRUD เพราะ 1) ต้อง increment vote count แบบ atomic ฝั่ง server เท่านั้น
+  // (ห้ามเชื่อเลขโหวตที่ client ส่งมา) 2) ต้องกันโหวตซ้ำแบบถาวร ไม่ใช่แค่ rolling-window เหมือน
+  // isRateLimited ทั่วไป — เก็บ hash ของ (pollId + IP) ไว้ใน data/pollVotes.json ถาวร (ไม่เก็บ IP ดิบ
+  // ตามหลัก PDPA ที่หน้านโยบายความเป็นส่วนตัวของเว็บพูดถึงอยู่แล้ว) 3) ต้องเปิดให้ POST ได้แบบ public แต่
+  // collection "polls" เองยังต้อง login ถึงจะ PUT/DELETE ได้ตามปกติ (ผ่าน /api/data/polls สำหรับ admin)
+  function pollVote(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.statusCode = 204; res.end(); return;
+    }
+
+    const parts = (req.url || '').split('?')[0].split('/').filter(Boolean);
+    const pollId = parts[0];
+    if (req.method !== 'POST' || parts[1] !== 'vote' || !pollId) {
+      res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบ endpoint นี้' })); return;
+    }
+
+    if (isRateLimited(req, `pollVote:${getClientIp(req)}`, 10, 600_000)) {
+      res.statusCode = 429; res.end(JSON.stringify({ error: 'โหวตบ่อยเกินไป กรุณารอสักครู่' })); return;
+    }
+
+    let body = '';
+    const MAX_BODY = 10 * 1024;
+    req.on('data', c => {
+      body += c;
+      if (body.length > MAX_BODY) { req.destroy(); res.statusCode = 413; res.end('{"error":"Payload too large"}'); }
+    });
+    req.on('end', () => {
+      if (res.writableEnded) return;
+      runExclusive('polls', () => {
+        try {
+          let optionId: string;
+          try { optionId = JSON.parse(body || '{}').optionId; } catch {
+            res.statusCode = 400; res.end(JSON.stringify({ error: 'ข้อมูลไม่ถูกต้อง' })); return;
+          }
+
+          const polls = readCollection('polls');
+          const poll = polls.find((p: any) => p.id === pollId);
+          if (!poll || !isPublicNow(poll)) {
+            res.statusCode = 404; res.end(JSON.stringify({ error: 'ไม่พบโพลนี้' })); return;
+          }
+          const option = (poll.options || []).find((o: any) => o.id === optionId);
+          if (!option) {
+            res.statusCode = 400; res.end(JSON.stringify({ error: 'ไม่พบตัวเลือกนี้' })); return;
+          }
+
+          // hash แทนเก็บ IP ดิบ — กันโหวตซ้ำถาวรโดยไม่ต้องเก็บข้อมูลระบุตัวตนไว้ในไฟล์
+          const voterKey = crypto.createHash('sha256').update(`${pollId}:${getClientIp(req)}`).digest('hex');
+          const voteLog = readCollection('pollVotes') as { pollId: string; voterKey: string }[];
+          if (voteLog.some(v => v.pollId === pollId && v.voterKey === voterKey)) {
+            res.statusCode = 409; res.end(JSON.stringify({ error: 'คุณโหวตโพลนี้ไปแล้ว' })); return;
+          }
+
+          option.votes = (option.votes || 0) + 1;
+          writeCollection('polls', polls);
+          broadcastCollection('polls', polls);
+          writeCollection('pollVotes', [...voteLog, { pollId, voterKey }]);
+
+          res.statusCode = 200; res.end(JSON.stringify(poll));
+        } catch {
+          res.statusCode = 500; res.end(JSON.stringify({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }));
+        }
+      });
+    });
+  }
+
   // ── SPA HTML renderer (SEO: meta injection สำหรับหน้าข่าว + JSON-LD พื้นฐานทุกหน้า) ──
   // ทำงานแทน app.get('*', res.sendFile(...)) เดิมใน server/index.ts — อ่าน dist/index.html สดทุก
   // request (ไฟล์เล็ก ไม่คุ้มทำ cache ให้ซับซ้อนเพิ่ม) แล้วแทนที่ meta tag เฉพาะตอนเป็นหน้าข่าวที่เผยแพร่จริง
@@ -1030,7 +1102,7 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
   const analyticsFlushInterval = setInterval(() => flushAnalytics(), 5 * 60_000);
   analyticsFlushInterval.unref?.();
 
-  return { login, logout, settingsStream, settings, upload, data, renderSpaHtml, sitemap, analytics, media };
+  return { login, logout, settingsStream, settings, upload, data, pollVote, renderSpaHtml, sitemap, analytics, media };
 }
 
 export type ApiHandlers = ReturnType<typeof createApiHandlers>;

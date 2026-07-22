@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, Save, X, Database, Newspaper,
   Calendar, BookOpen, Users, Mail, MessageSquare, LogIn,
   AlertTriangle, Eye, EyeOff, ShieldCheck, UserPlus, LogOut, Settings,
-  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate, BarChart3
+  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate, BarChart3, Vote
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import {
@@ -12,6 +12,7 @@ import {
   subscribeToEvents, addEvent, updateEvent, deleteEvent,
   subscribeToPolicies, addPolicy, updatePolicy, deletePolicy,
   subscribeToTeam, addTeamMember, updateTeamMember, deleteTeamMember,
+  subscribeToPolls, addPoll, updatePoll, deletePoll,
   subscribeToNewsletter, subscribeToContact,
   subscribeToVolunteer, deleteVolunteer,
   fetchSiteSettings, updateSiteSettings,
@@ -20,19 +21,19 @@ import {
   subscribeToAdminAccounts, addAdminAccount, updateAdminAccount, deleteAdminAccount,
   seedInitialData, fetchAnalytics,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, Poll, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData } from '../types';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 import ImageUploadField from '../components/ImageUploadField';
 
-type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings' | 'analytics';
+type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'polls' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings' | 'analytics';
 
 // ค่า default ของแท็บที่ admin ธรรมดา (role='admin') ได้ ถ้าตอนสร้างบัญชีไม่ได้เลือกแท็บเอง —
 // ตรงกับ DEFAULT_ADMIN_TABS ฝั่ง server (server/api.ts) คือทุกแท็บยกเว้น users/settings
-const DEFAULT_ADMIN_TABS_CLIENT: Tab[] = ['news', 'events', 'policies', 'team', 'newsletter', 'contact', 'volunteer'];
+const DEFAULT_ADMIN_TABS_CLIENT: Tab[] = ['news', 'events', 'policies', 'team', 'polls', 'newsletter', 'contact', 'volunteer'];
 
 // จัดกลุ่มแท็บให้เห็นเป็นหมวดหมู่ชัดเจนในแถบเมนู — ไม่กระทบ logic ด้านใน แค่จัดการแสดงผล
 const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
-  { label: 'เนื้อหาเว็บ', tabs: ['news', 'events', 'policies', 'team', 'homeBlocks'] },
+  { label: 'เนื้อหาเว็บ', tabs: ['news', 'events', 'policies', 'team', 'homeBlocks', 'polls'] },
   { label: 'ข้อมูลติดต่อ', tabs: ['newsletter', 'contact', 'volunteer'] },
   { label: 'ระบบ', tabs: ['users', 'settings', 'analytics'] },
 ];
@@ -95,6 +96,11 @@ export default function AdminPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [pollModal, setPollModal] = useState<{ open: boolean; mode: 'add' | 'edit'; data: any }>({ open: false, mode: 'add', data: null });
+  const [savingPoll, setSavingPoll] = useState(false);
+  const [pollSaveError, setPollSaveError] = useState('');
+  const [deletePollTarget, setDeletePollTarget] = useState<string | null>(null);
   const [newsletter, setNewsletter] = useState<NewsletterSubscriber[]>([]);
   const [contact, setContact] = useState<ContactMessage[]>([]);
   const [volunteer, setVolunteer] = useState<VolunteerItem[]>([]);
@@ -143,6 +149,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       subscribeToEvents(setEvents),
       subscribeToPolicies(setPolicies),
       subscribeToTeam(setTeam),
+      subscribeToPolls(setPolls),
       subscribeToNewsletter(setNewsletter),
       subscribeToContact(setContact),
       subscribeToVolunteer(setVolunteer),
@@ -529,12 +536,75 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     }
   };
 
+  // โพลเป็นแท็บแบบ bespoke แยกต่างหาก ไม่ใช้ fieldConfig/modal กลาง เพราะ options[] เป็น array
+  // ของ sub-object ที่ระบบ fieldConfig เดิมไม่รองรับ (ไม่มี field type แบบ repeater)
+  const openAddPoll = () => {
+    setPollSaveError('');
+    setPollModal({
+      open: true, mode: 'add',
+      data: {
+        question: '',
+        options: [
+          { id: `opt_${Date.now()}_1`, label: '', votes: 0 },
+          { id: `opt_${Date.now()}_2`, label: '', votes: 0 },
+        ],
+        published: true, publishAt: '', unpublishAt: '',
+      },
+    });
+  };
+  const openEditPoll = (poll: Poll) => {
+    setPollSaveError('');
+    setPollModal({ open: true, mode: 'edit', data: { ...poll } });
+  };
+  const addPollOption = () => setPollModal(m => ({
+    ...m, data: { ...m.data, options: [...m.data.options, { id: `opt_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`, label: '', votes: 0 }] },
+  }));
+  const removePollOption = (index: number) => setPollModal(m => ({
+    ...m, data: { ...m.data, options: m.data.options.filter((_: any, i: number) => i !== index) },
+  }));
+  const updatePollOptionLabel = (index: number, label: string) => setPollModal(m => ({
+    ...m, data: { ...m.data, options: m.data.options.map((o: any, i: number) => (i === index ? { ...o, label } : o)) },
+  }));
+  const handleSavePoll = async () => {
+    if (!pollModal.data.question.trim()) { setPollSaveError('กรุณากรอกคำถาม'); return; }
+    const validOptions = pollModal.data.options.filter((o: any) => o.label.trim());
+    if (validOptions.length < 2) { setPollSaveError('ต้องมีตัวเลือกอย่างน้อย 2 ข้อ'); return; }
+    setSavingPoll(true);
+    setPollSaveError('');
+    try {
+      const payload = {
+        question: pollModal.data.question.trim(),
+        options: validOptions,
+        published: pollModal.data.published !== false,
+        publishAt: pollModal.data.publishAt || '',
+        unpublishAt: pollModal.data.unpublishAt || '',
+      };
+      if (pollModal.mode === 'add') await addPoll(payload);
+      else await updatePoll(pollModal.data.id, payload);
+      setPollModal({ open: false, mode: 'add', data: null });
+    } catch (err: any) {
+      setPollSaveError(err?.message || 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSavingPoll(false);
+    }
+  };
+  const handleTogglePollPublished = async (poll: Poll) => {
+    try { await updatePoll(poll.id, { published: poll.published === false }); }
+    catch (err: any) { alert(err?.message || 'เกิดข้อผิดพลาด'); }
+  };
+  const handleDeletePoll = async (id: string) => {
+    try { await deletePoll(id); }
+    catch { alert('ลบไม่สำเร็จ กรุณาลองใหม่'); }
+    finally { setDeletePollTarget(null); }
+  };
+
   const ALL_TABS: { key: Tab; label: string; icon: any; count?: number }[] = [
     { key: 'news', label: 'ข่าวสาร', icon: Newspaper, count: news.length },
     { key: 'events', label: 'กิจกรรม', icon: Calendar, count: events.length },
     { key: 'policies', label: 'นโยบาย', icon: BookOpen, count: policies.length },
     { key: 'team', label: 'ทีมพรรค', icon: Users, count: team.length },
     { key: 'homeBlocks', label: 'หน้าแรก', icon: LayoutTemplate, count: homeBlocks.length },
+    { key: 'polls', label: 'โพล', icon: Vote, count: polls.length },
     { key: 'newsletter', label: 'Newsletter', icon: Mail, count: newsletter.length },
     { key: 'contact', label: 'ข้อความ', icon: MessageSquare, count: contact.length },
     { key: 'volunteer', label: 'อาสาสมัคร', icon: Heart, count: volunteer.length },
@@ -1484,6 +1554,70 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
             </div>
           </div>
 
+        ) : tab === 'polls' ? (
+          <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+              <h2 className="text-2xl font-black tracking-tight">โพล</h2>
+              {hasTabPermission('polls') && (
+                <button onClick={openAddPoll} className="neon-button">
+                  <Plus size={18} /> เพิ่มโพลใหม่
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {polls.length === 0 && (
+                <p className="text-white/30 text-center py-12">ยังไม่มีโพล — กด "เพิ่มโพลใหม่"</p>
+              )}
+              {polls.map(poll => {
+                const totalVotes = poll.options.reduce((sum, o) => sum + (o.votes || 0), 0);
+                return (
+                  <div key={poll.id} className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-lg">{poll.question}</p>
+                        <p className="text-white/40 text-xs mt-1">{totalVotes.toLocaleString('th-TH')} โหวตทั้งหมด</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleTogglePollPublished(poll)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all whitespace-nowrap ${
+                            poll.published !== false ? 'bg-green-500/10 border border-green-500/30 text-green-400' : 'bg-white/5 border border-white/20 text-white/40'
+                          }`}
+                        >
+                          {poll.published !== false ? 'เผยแพร่อยู่' : 'ซ่อนอยู่'}
+                        </button>
+                        {hasTabPermission('polls') && (
+                          <>
+                            <button onClick={() => openEditPoll(poll)} className="w-9 h-9 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all shrink-0">
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => setDeletePollTarget(poll.id)} className="w-9 h-9 rounded-xl border border-red-500/30 flex items-center justify-center hover:bg-red-500/10 transition-all text-red-400 shrink-0">
+                              <Trash2 size={15} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2 mt-4">
+                      {poll.options.map(opt => (
+                        <div key={opt.id} className="flex items-center gap-3">
+                          <span className="text-xs text-white/60 w-32 truncate shrink-0" title={opt.label}>{opt.label}</span>
+                          <div className="flex-1 bg-white/5 rounded-full h-5 overflow-hidden">
+                            <div className="h-full bg-brand-neon/40 rounded-full" style={{ width: `${totalVotes ? (opt.votes / totalVotes) * 100 : 0}%` }} />
+                          </div>
+                          <span className="text-xs font-bold text-white/70 w-24 text-right shrink-0">
+                            {(opt.votes || 0).toLocaleString('th-TH')} ({totalVotes ? Math.round((opt.votes / totalVotes) * 100) : 0}%)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
         ) : (
           /* Content Tabs */
           <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
@@ -1851,6 +1985,133 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 ลบเลย
               </button>
               <button onClick={() => setDeleteTarget(null)} className="outline-button flex-1 justify-center">
+                ยกเลิก
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Poll Add/Edit Modal */}
+      {pollModal.open && pollModal.data && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-brand-navy border border-white/10 rounded-t-[32px] sm:rounded-[32px] w-full max-w-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh]"
+          >
+            <div className="flex justify-between items-center px-8 pt-8 pb-4 shrink-0">
+              <h3 className="text-2xl font-black">{pollModal.mode === 'add' ? 'เพิ่มโพลใหม่' : 'แก้ไขโพล'}</h3>
+              <button onClick={() => { setPollModal({ open: false, mode: 'add', data: null }); setPollSaveError(''); }} className="text-white/40 hover:text-white">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-8 pb-2">
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">คำถาม</label>
+                  <input
+                    type="text" value={pollModal.data.question || ''}
+                    onChange={e => setPollModal(m => ({ ...m, data: { ...m.data, question: e.target.value } }))}
+                    maxLength={300}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">ตัวเลือกคำตอบ (อย่างน้อย 2 ข้อ)</label>
+                  <div className="space-y-2">
+                    {pollModal.data.options.map((opt: any, i: number) => (
+                      <div key={opt.id} className="flex items-center gap-2">
+                        <input
+                          type="text" value={opt.label}
+                          onChange={e => updatePollOptionLabel(i, e.target.value)}
+                          placeholder={`ตัวเลือกที่ ${i + 1}`}
+                          maxLength={100}
+                          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                        />
+                        {pollModal.mode === 'edit' && (
+                          <span className="text-xs text-white/30 w-16 text-right shrink-0">{opt.votes || 0} โหวต</span>
+                        )}
+                        {pollModal.data.options.length > 2 && (
+                          <button type="button" onClick={() => removePollOption(i)} className="w-9 h-9 rounded-xl border border-red-500/30 flex items-center justify-center hover:bg-red-500/10 transition-all text-red-400 shrink-0">
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={addPollOption} className="mt-3 flex items-center gap-1.5 text-sm font-bold text-brand-neon hover:text-brand-accent transition-colors">
+                    <Plus size={16} /> เพิ่มตัวเลือก
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-white/60 mb-2">สถานะการแสดงผล</label>
+                  <button
+                    type="button"
+                    onClick={() => setPollModal(m => ({ ...m, data: { ...m.data, published: m.data.published === false } }))}
+                    className={`flex items-center gap-3 px-5 py-3 rounded-2xl border font-bold transition-all ${
+                      pollModal.data.published !== false ? 'bg-brand-neon/20 border-brand-neon text-brand-neon' : 'bg-white/5 border-white/20 text-white/40'
+                    }`}
+                  >
+                    <div className={`w-10 h-6 rounded-full transition-all relative ${pollModal.data.published !== false ? 'bg-brand-neon' : 'bg-white/20'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${pollModal.data.published !== false ? 'right-1' : 'left-1'}`} />
+                    </div>
+                    {pollModal.data.published !== false ? 'แสดงผล (เปิด)' : 'ซ่อน (ปิด)'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-white/60 mb-2">เริ่มแสดงวันที่ (ไม่บังคับ)</label>
+                    <input
+                      type="datetime-local" value={pollModal.data.publishAt || ''}
+                      onChange={e => setPollModal(m => ({ ...m, data: { ...m.data, publishAt: e.target.value } }))}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-white/60 mb-2">หยุดแสดงวันที่ (ไม่บังคับ)</label>
+                    <input
+                      type="datetime-local" value={pollModal.data.unpublishAt || ''}
+                      onChange={e => setPollModal(m => ({ ...m, data: { ...m.data, unpublishAt: e.target.value } }))}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-white focus:outline-none focus:border-brand-neon transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="shrink-0 px-8 pb-8 pt-4 border-t border-white/10">
+              {pollSaveError && (
+                <p className="mb-4 text-red-400 text-sm bg-red-400/10 border border-red-400/30 rounded-xl px-4 py-3">{pollSaveError}</p>
+              )}
+              <div className="flex gap-4">
+                <button onClick={handleSavePoll} disabled={savingPoll} className="neon-button flex-1 justify-center text-lg py-4">
+                  <Save size={18} /> {savingPoll ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+                <button onClick={() => { setPollModal({ open: false, mode: 'add', data: null }); setPollSaveError(''); }} className="outline-button px-8 py-4">
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {deletePollTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-brand-navy border border-red-500/30 rounded-[32px] p-10 text-center max-w-md w-full"
+          >
+            <Trash2 size={48} className="text-red-400 mx-auto mb-6" />
+            <h3 className="text-2xl font-black mb-3">ยืนยันการลบโพล?</h3>
+            <p className="text-white/50 mb-8">ข้อมูลจะถูกลบถาวรและไม่สามารถกู้คืนได้</p>
+            <div className="flex gap-4">
+              <button onClick={() => handleDeletePoll(deletePollTarget)} className="flex-1 bg-red-500 text-white font-black py-3 rounded-full hover:bg-red-600 transition-colors">
+                ลบเลย
+              </button>
+              <button onClick={() => setDeletePollTarget(null)} className="outline-button flex-1 justify-center">
                 ยกเลิก
               </button>
             </div>

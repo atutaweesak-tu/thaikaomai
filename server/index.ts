@@ -54,6 +54,7 @@ app.use('/api/settings/stream', handlers.settingsStream);
 app.use('/api/settings', handlers.settings);
 app.use('/api/upload', handlers.upload);
 app.use('/api/data', handlers.data);
+app.use('/api/polls', handlers.pollVote);
 
 app.get('/sitemap.xml', handlers.sitemap);
 app.get('/api/analytics', handlers.analytics);
