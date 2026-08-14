@@ -16,7 +16,9 @@ export default function TeamSection() {
     return () => unsub();
   }, []);
 
-  const visibleTeam = team.filter(m => m.published !== false);
+  const visibleTeam = team
+    .filter(m => m.published !== false)
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const featured = visibleTeam.filter(m => m.featuredHome === true).slice(0, 3);
   const homeTeam = featured.length > 0 ? featured : visibleTeam.slice(0, 3);
 

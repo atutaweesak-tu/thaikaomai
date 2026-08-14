@@ -530,6 +530,9 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       } else if (savedTab === 'homeBlocks') {
         await updateHomeBlock(a.id, { order: bOrder });
         await updateHomeBlock(b.id, { order: aOrder });
+      } else if (savedTab === 'team') {
+        await updateTeamMember(a.id, { order: bOrder });
+        await updateTeamMember(b.id, { order: aOrder });
       }
     } finally {
       setTab(savedTab);
@@ -636,7 +639,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const sortedPolicies = [...policies].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedCategories = [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedHomeBlocks = [...homeBlocks].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  const currentData: Record<string, any[]> = { news, events, policies: sortedPolicies, team, homeBlocks: sortedHomeBlocks, newsletter, contact, volunteer };
+  const sortedTeam = [...team].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  const currentData: Record<string, any[]> = { news, events, policies: sortedPolicies, team: sortedTeam, homeBlocks: sortedHomeBlocks, newsletter, contact, volunteer };
   const canEdit = ['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && hasTabPermission(tab);
 
   const fieldConfig: Record<string, { key: string; label: string; type: string; maxLength?: number; options?: string[]; optionLabels?: string[] }[]> = {
@@ -1802,7 +1806,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </div>
                   {canEdit && (
                     <div className="flex gap-2 shrink-0">
-                      {(tab === 'policies' || tab === 'homeBlocks') && (
+                      {(tab === 'policies' || tab === 'homeBlocks' || tab === 'team') && (
                         <div className="flex flex-col gap-1">
                           <button
                             onClick={() => handleReorder(currentData[tab], index, 'up')}

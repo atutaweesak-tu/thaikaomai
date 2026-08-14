@@ -17,7 +17,9 @@ export default function TeamPage() {
     return () => { unsubTeam(); unsubSettings(); };
   }, []);
 
-  const visibleTeam = teamData.filter(m => m.published !== false);
+  const visibleTeam = teamData
+    .filter(m => m.published !== false)
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const chairmen = visibleTeam.filter(m => m.category === 'chairman');
   const leaders = visibleTeam.filter(m => m.category === 'leader');
   const experts = visibleTeam.filter(m => m.category === 'expert');
@@ -98,7 +100,7 @@ export default function TeamPage() {
         {experts.length > 0 && (
           <div>
             <h2 className="text-3xl font-black tracking-tighter mb-12 uppercase border-b border-white/10 pb-4">กรรมการบริหารพรรค</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {experts.map((member) => (
                 <motion.div
                   key={member.id}
