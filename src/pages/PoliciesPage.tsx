@@ -25,6 +25,19 @@ export default function PoliciesPage() {
     return true;
   });
 
+  // ธนูดอกใหญ่ 4 ดอก (featuredHome) เป็นกาดใหญ่ ส่วนนโยบายที่ตามมาจนถึงดอกถัดไปคือกาดย่อยของดอกนั้น
+  type Group = { header: Policy; items: Policy[] };
+  const groups: Group[] = [];
+  for (const policy of visiblePolicies) {
+    if (policy.featuredHome) {
+      groups.push({ header: policy, items: [] });
+    } else if (groups.length > 0) {
+      groups[groups.length - 1].items.push(policy);
+    } else {
+      groups.push({ header: policy, items: [] });
+    }
+  }
+
   return (
     <main className="pt-32 pb-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,39 +59,81 @@ export default function PoliciesPage() {
           )}
         </motion.div>
 
-        <div className="space-y-12">
-          {visiblePolicies.map((policy, index) => {
-            const IconComponent = (Icons as any)[policy.icon];
+        <div className="space-y-16">
+          {groups.map((group, gIndex) => {
+            const HeaderIcon = (Icons as any)[group.header.icon];
             return (
               <motion.div
-                key={policy.id}
-                initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                key={group.header.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center"
+                className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-16"
               >
-                <div className={index % 2 === 0 ? "order-1" : "order-1 lg:order-2"}>
-                  <div className="w-20 h-20 bg-brand-neon rounded-3xl flex items-center justify-center text-brand-navy mb-8 overflow-hidden">
-                    {policy.iconImage
-                      ? <img src={policy.iconImage} alt={policy.title} className="w-full h-full object-cover" loading="lazy" />
-                      : IconComponent ? <IconComponent size={40} /> : null}
-                  </div>
-                  <h2 className="text-4xl font-black tracking-tighter mb-6">{policy.title}</h2>
-                  <p className="text-white/60 text-lg leading-relaxed">
-                    {policy.description}
-                  </p>
-                </div>
-                {policy.iconImage && (
-                  <div className={index % 2 === 0 ? "order-2" : "order-2 lg:order-1"}>
-                    <div className="aspect-video bg-brand-navy rounded-3xl border border-white/10 overflow-hidden">
-                      <img
-                        src={policy.iconImage}
-                        alt={policy.title}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                      />
+                {/* กาดใหญ่ — หัวข้อธนูดอก */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-4">
+                  <div className={gIndex % 2 === 0 ? "order-1" : "order-1 lg:order-2"}>
+                    <div className="w-20 h-20 bg-brand-neon rounded-3xl flex items-center justify-center text-brand-navy mb-8 overflow-hidden">
+                      {group.header.iconImage
+                        ? <img src={group.header.iconImage} alt={group.header.title} className="w-full h-full object-cover" loading="lazy" />
+                        : HeaderIcon ? <HeaderIcon size={40} /> : null}
                     </div>
+                    <h2 className="text-4xl font-black tracking-tighter mb-6">{group.header.title}</h2>
+                    <p className="text-white/60 text-lg leading-relaxed">
+                      {group.header.description}
+                    </p>
+                  </div>
+                  {group.header.iconImage && (
+                    <div className={gIndex % 2 === 0 ? "order-2" : "order-2 lg:order-1"}>
+                      <div className="aspect-video bg-brand-navy rounded-3xl border border-white/10 overflow-hidden">
+                        <img
+                          src={group.header.iconImage}
+                          alt={group.header.title}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* กาดย่อย — นโยบายภายใต้ธนูดอกนี้ แถวละ 2 กาด */}
+                {group.items.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-10">
+                    {group.items.map((policy, index) => {
+                      const IconComponent = (Icons as any)[policy.icon];
+                      return (
+                        <motion.div
+                          key={policy.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          transition={{ delay: (index % 4) * 0.05 }}
+                          viewport={{ once: true }}
+                          className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8"
+                        >
+                          {policy.iconImage ? (
+                            <div className="w-full aspect-video rounded-2xl overflow-hidden mb-5 bg-brand-navy border border-white/10">
+                              <img
+                                src={policy.iconImage}
+                                alt={policy.title}
+                                className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-14 h-14 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-5">
+                              {IconComponent ? <IconComponent size={26} /> : null}
+                            </div>
+                          )}
+                          <h3 className="text-xl font-black tracking-tight mb-3">{policy.title}</h3>
+                          <p className="text-white/60 text-sm md:text-base leading-relaxed">
+                            {policy.description}
+                          </p>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>

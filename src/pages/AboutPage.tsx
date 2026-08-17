@@ -19,16 +19,19 @@ export default function AboutPage() {
       icon: Landmark,
       label: 'ประวัติความเป็นมา',
       content: about.history,
+      image: about.historyImage,
     },
     {
       icon: Heart,
       label: 'อุดมการณ์พรรค',
       content: about.ideology,
+      image: about.ideologyImage,
     },
     {
       icon: Eye,
       label: 'วิสัยทัศน์',
       content: about.vision,
+      image: about.visionImage,
     },
   ];
 
@@ -64,7 +67,7 @@ export default function AboutPage() {
 
         {/* Content Sections */}
         <div className="space-y-8">
-          {sections.map(({ icon: Icon, label, content }, i) => (
+          {sections.map(({ icon: Icon, label, content, image }, i) => (
             <motion.div
               key={label}
               initial={{ opacity: 0, y: 20 }}
@@ -78,6 +81,11 @@ export default function AboutPage() {
                 </div>
                 <h2 className="text-xl font-black text-white">{label}</h2>
               </div>
+              {image && (
+                <div className="rounded-2xl overflow-hidden mb-6 aspect-video">
+                  <img src={image} alt={label} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                </div>
+              )}
               <p className="text-white/70 leading-relaxed whitespace-pre-line text-base md:text-lg">
                 {content}
               </p>

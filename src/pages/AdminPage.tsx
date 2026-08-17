@@ -681,7 +681,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'icon', label: 'Icon (Lucide name) — ใช้ถ้าไม่มีรูป', type: 'text' },
       { key: 'color', label: 'สีพื้นหลัง', type: 'color-picker' },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
-      { key: 'featuredHome', label: 'แสดงในหน้าหลัก (เลือกได้สูงสุด 4 นโยบาย)', type: 'toggle' },
+      { key: 'featuredHome', label: 'ธนูดอกใหญ่ — แสดงในหน้าหลัก และเป็นกาดใหญ่ในหน้านโยบาย (เลือกได้สูงสุด 4 นโยบาย)', type: 'toggle' },
       { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'seoTitle', label: 'SEO: หัวข้อสำหรับ Google/แชร์โซเชียล (ไม่บังคับ)', type: 'text', maxLength: 200 },
@@ -1217,17 +1217,20 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-1">ประวัติความเป็นมา</label>
                   <textarea value={siteSettings.about.history} onChange={e => setAbout('history', e.target.value)}
-                    rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none" />
+                    rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none mb-3" />
+                  <ImageUploadField value={siteSettings.about.historyImage || ''} onChange={v => setAbout('historyImage', v)} label="รูปประกอบ" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-1">อุดมการณ์พรรค</label>
                   <textarea value={siteSettings.about.ideology} onChange={e => setAbout('ideology', e.target.value)}
-                    rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none" />
+                    rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none mb-3" />
+                  <ImageUploadField value={siteSettings.about.ideologyImage || ''} onChange={v => setAbout('ideologyImage', v)} label="รูปประกอบ" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-1">วิสัยทัศน์</label>
                   <textarea value={siteSettings.about.vision} onChange={e => setAbout('vision', e.target.value)}
-                    rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none" />
+                    rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none mb-3" />
+                  <ImageUploadField value={siteSettings.about.visionImage || ''} onChange={v => setAbout('visionImage', v)} label="รูปประกอบ" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Banner หน้าเกี่ยวกับพรรค</label>

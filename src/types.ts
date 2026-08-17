@@ -128,8 +128,11 @@ export interface SiteSettings {
   popup: PopupSettings;
   about: {
     history: string;
+    historyImage?: string;
     ideology: string;
+    ideologyImage?: string;
     vision: string;
+    visionImage?: string;
     image: string;
   };
   privacy: {
@@ -216,8 +219,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
   about: {
     history: 'พรรคไทยก้าวใหม่ ก่อตั้งขึ้นจากความมุ่งมั่นที่จะสร้างการเปลี่ยนแปลงที่แท้จริงให้กับประเทศไทย โดยมี ดร.สุชัชวีร์ สุวรรณสวัสดิ์ เป็นแกนนำในการก่อตั้ง',
+    historyImage: '',
     ideology: 'พรรคไทยก้าวใหม่ยึดมั่นในหลักการประชาธิปไตย ความเท่าเทียม ความโปร่งใส และการพัฒนาที่ยั่งยืน เพื่อให้คนไทยทุกคนมีคุณภาพชีวิตที่ดีขึ้น',
+    ideologyImage: '',
     vision: 'ประเทศไทยที่ก้าวหน้า เข้มแข็ง และเป็นธรรม โดยมีประชาชนเป็นศูนย์กลางของการพัฒนา',
+    visionImage: '',
     image: '',
   },
   privacy: {
