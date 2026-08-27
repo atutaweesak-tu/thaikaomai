@@ -46,25 +46,27 @@ export default function TeamSection() {
               viewport={{ once: true }}
               className="group relative shrink-0 w-[80%] snap-center md:w-auto md:shrink"
             >
-              <div className="aspect-[3/4] rounded-3xl overflow-hidden border border-white/10 mb-6 relative bg-white/5">
-                {member.image ? (
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    className="w-full h-full object-cover transition-all duration-500"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <User size={64} strokeWidth={1} className="text-white/15" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-brand-navy via-transparent to-transparent opacity-60" />
-              </div>
-              <h3 className="text-2xl font-black tracking-tighter mb-1">{member.name}</h3>
-              <p className="text-brand-neon text-sm font-bold uppercase tracking-widest mb-3">{member.role}</p>
-              <p className="text-white/40 text-sm">{member.bio}</p>
+              <Link to={`/team/${member.id}`}>
+                <div className="aspect-[3/4] rounded-3xl overflow-hidden border border-white/10 mb-6 relative bg-white/5">
+                  {member.image ? (
+                    <img
+                      src={member.image}
+                      alt={member.name}
+                      className="w-full h-full object-cover transition-all duration-500"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <User size={64} strokeWidth={1} className="text-white/15" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-brand-navy via-transparent to-transparent opacity-60" />
+                </div>
+                <h3 className="text-2xl font-black tracking-tighter mb-1 group-hover:text-brand-neon transition-colors">{member.name}</h3>
+                <p className="text-brand-neon text-sm font-bold uppercase tracking-widest mb-3">{member.role}</p>
+                <p className="text-white/40 text-sm">{member.bio}</p>
+              </Link>
             </motion.div>
           ))}
         </div>

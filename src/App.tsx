@@ -17,6 +17,7 @@ import HomePage from './pages/HomePage';
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const PoliciesPage = lazy(() => import('./pages/PoliciesPage'));
 const TeamPage = lazy(() => import('./pages/TeamPage'));
+const TeamDetailPage = lazy(() => import('./pages/TeamDetailPage'));
 const NewsPage = lazy(() => import('./pages/NewsPage'));
 const NewsDetailPage = lazy(() => import('./pages/NewsDetailPage'));
 const PollsPage = lazy(() => import('./pages/PollsPage'));
@@ -48,6 +49,7 @@ export default function App() {
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/policies" element={<PoliciesPage />} />
                   <Route path="/team" element={<TeamPage />} />
+                  <Route path="/team/:id" element={<TeamDetailPage />} />
                   <Route path="/news" element={<NewsPage />} />
                   <Route path="/news/:id" element={<NewsDetailPage />} />
                   <Route path="/polls" element={<PollsPage />} />

@@ -28,6 +28,7 @@ export interface TeamMember extends AuditFields {
   role: string;
   image: string;
   bio: string;
+  content?: string; // ประวัติฉบับเต็ม — แสดงเฉพาะหน้าโปรไฟล์รายบุคคล (/team/:id), ไม่บังคับกรอก
   category: 'chairman' | 'leader' | 'expert';
   order?: number;
   published?: boolean;

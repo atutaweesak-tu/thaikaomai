@@ -46,7 +46,7 @@ const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings', a
 const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', date: '', image: '', category: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_POLICY: Omit<Policy, 'id'> = { title: '', description: '', icon: 'BookOpen', iconImage: '', color: '#E6FF00', published: true, publishAt: '', unpublishAt: '', featuredHome: false };
-const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', category: 'leader', published: true, featuredHome: false };
+const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', content: '', category: 'leader', published: true, featuredHome: false };
 const EMPTY_PROMO_BLOCK: Omit<PageBlock, 'id'> = { type: 'promo', order: 0, title: '', description: '', image: '', link: '', buttonText: '', published: true, publishAt: '', unpublishAt: '' };
 const FONT_SIZE_OPTIONS = [
   { value: '', label: 'ค่าเริ่มต้น' },
@@ -690,7 +690,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     team: [
       { key: 'name', label: 'ชื่อ-นามสกุล', type: 'text', maxLength: 100 },
       { key: 'role', label: 'ตำแหน่ง', type: 'text', maxLength: 100 },
-      { key: 'bio', label: 'ประวัติย่อ', type: 'textarea', maxLength: 500 },
+      { key: 'bio', label: 'ประวัติย่อ (แสดงในการ์ดหน้ารวมทีม)', type: 'textarea', maxLength: 500 },
+      { key: 'content', label: 'ประวัติฉบับเต็ม (แสดงในหน้าโปรไฟล์รายบุคคลเท่านั้น — ไม่บังคับกรอก)', type: 'textarea', maxLength: 20000 },
       { key: 'image', label: 'รูปภาพ', type: 'image-upload' },
       { key: 'category', label: 'ประเภท', type: 'select', options: ['chairman', 'leader', 'expert'], optionLabels: ['ประธานพรรค', 'ผู้นำพรรค', 'กรรมการบริหาร'] },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },

@@ -984,6 +984,37 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
       }
     }
 
+    const teamMatch = urlPath.match(/^\/team\/([^/]+)\/?$/);
+    if (teamMatch) {
+      const member = readCollection('team').find((m: any) => m.id === teamMatch[1]);
+      if (member && isPublicNow(member)) {
+        const title = escapeHtml(`${member.name || ''} — พรรคไทยก้าวใหม่`);
+        const description = escapeHtml(member.bio || '');
+        const imageUrl = absoluteImageUrl(host, member.image);
+        const image = escapeHtml(imageUrl);
+        html = html
+          .replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`)
+          .replace(/(<meta name="description" content=")[^"]*(")/, `$1${description}$2`)
+          .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${title}$2`)
+          .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${description}$2`)
+          .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${image}$2`)
+          .replace(/(<meta property="og:type" content=")[^"]*(")/, `$1profile$2`)
+          .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${title}$2`)
+          .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${description}$2`)
+          .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${image}$2`);
+
+        const personLd = {
+          '@context': 'https://schema.org',
+          '@type': 'Person',
+          name: member.name,
+          jobTitle: member.role || '',
+          description: member.bio || '',
+          image: imageUrl,
+        };
+        html = html.replace('</head>', `<script type="application/ld+json">${safeJsonLd(personLd)}</script></head>`);
+      }
+    }
+
     // Organization JSON-LD — ใส่ทุกหน้า ใช้ข้อมูลจาก settings.contact ที่มีอยู่แล้ว
     try {
       const siteSettings = JSON.parse(readSettings());
@@ -1012,7 +1043,8 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     const base = `https://${host}`;
     const staticPaths = ['/', '/about', '/policies', '/team', '/news', '/contact', '/volunteer', '/privacy'];
     const newsUrls = readCollection('news').filter(isPublicNow).map((n: any) => `/news/${n.id}`);
-    const urls = [...staticPaths, ...newsUrls];
+    const teamUrls = readCollection('team').filter(isPublicNow).map((m: any) => `/team/${m.id}`);
+    const urls = [...staticPaths, ...newsUrls, ...teamUrls];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
       urls.map(u => `  <url><loc>${base}${u}</loc></url>`).join('\n')
     }\n</urlset>\n`;

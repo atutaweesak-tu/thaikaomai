@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { User } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, User } from 'lucide-react';
 import { TEAM as FALLBACK_TEAM } from '../constants';
 import { subscribeToTeam, subscribeToSiteSettings } from '../services/dataService';
 import { TeamMember, SiteSettings, DEFAULT_SETTINGS } from '../types';
@@ -55,16 +56,23 @@ export default function TeamPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
-                  className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center"
                 >
-                  <div className="w-48 h-48 rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
-                    {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-black tracking-tighter mb-2">{member.name}</h3>
-                    <p className="text-brand-neon font-bold uppercase tracking-widest text-sm mb-4">{member.role}</p>
-                    <p className="text-white/60 leading-relaxed">{member.bio}</p>
-                  </div>
+                  <Link
+                    to={`/team/${member.id}`}
+                    className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
+                  >
+                    <div className="w-48 h-48 rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
+                      {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black tracking-tighter mb-2">{member.name}</h3>
+                      <p className="text-brand-neon font-bold uppercase tracking-widest text-sm mb-4">{member.role}</p>
+                      <p className="text-white/60 leading-relaxed mb-4">{member.bio}</p>
+                      <span className="inline-flex items-center gap-2 text-sm font-bold text-white/50 group-hover:text-brand-neon transition-colors">
+                        ดูประวัติเพิ่มเติม <ArrowRight size={16} />
+                      </span>
+                    </div>
+                  </Link>
                 </motion.div>
               ))}
             </div>
@@ -81,16 +89,23 @@ export default function TeamPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   whileInView={{ opacity: 1, scale: 1 }}
                   viewport={{ once: true }}
-                  className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center"
                 >
-                  <div className="w-48 h-48 rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
-                    {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
-                  </div>
-                  <div>
-                    <h3 className="text-3xl font-black tracking-tighter mb-2">{member.name}</h3>
-                    <p className="text-brand-neon font-bold uppercase tracking-widest text-sm mb-4">{member.role}</p>
-                    <p className="text-white/60 leading-relaxed">{member.bio}</p>
-                  </div>
+                  <Link
+                    to={`/team/${member.id}`}
+                    className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
+                  >
+                    <div className="w-48 h-48 rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
+                      {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black tracking-tighter mb-2">{member.name}</h3>
+                      <p className="text-brand-neon font-bold uppercase tracking-widest text-sm mb-4">{member.role}</p>
+                      <p className="text-white/60 leading-relaxed mb-4">{member.bio}</p>
+                      <span className="inline-flex items-center gap-2 text-sm font-bold text-white/50 group-hover:text-brand-neon transition-colors">
+                        ดูประวัติเพิ่มเติม <ArrowRight size={16} />
+                      </span>
+                    </div>
+                  </Link>
                 </motion.div>
               ))}
             </div>
@@ -107,14 +122,18 @@ export default function TeamPage() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  className="bento-card"
                 >
-                  <div className="aspect-square rounded-2xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
-                    {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={40} strokeWidth={1} className="text-white/15" />}
-                  </div>
-                  <h3 className="text-xl font-bold mb-1">{member.name}</h3>
-                  <p className="text-brand-neon text-xs font-bold uppercase tracking-widest mb-3">{member.role}</p>
-                  <p className="text-white/40 text-sm">{member.bio}</p>
+                  <Link to={`/team/${member.id}`} className="bento-card group block">
+                    <div className="aspect-square rounded-2xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
+                      {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={40} strokeWidth={1} className="text-white/15" />}
+                    </div>
+                    <h3 className="text-xl font-bold mb-1">{member.name}</h3>
+                    <p className="text-brand-neon text-xs font-bold uppercase tracking-widest mb-3">{member.role}</p>
+                    <p className="text-white/40 text-sm mb-4">{member.bio}</p>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-white/40 group-hover:text-brand-neon transition-colors">
+                      ดูประวัติเพิ่มเติม <ArrowRight size={14} />
+                    </span>
+                  </Link>
                 </motion.div>
               ))}
             </div>
