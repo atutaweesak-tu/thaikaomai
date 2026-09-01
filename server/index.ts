@@ -4,6 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { readRawEnv } from './env';
 import { createApiHandlers } from './api';
+import { createVerifyRouter } from './verify/routes';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -55,6 +56,10 @@ app.use('/api/settings', handlers.settings);
 app.use('/api/upload', handlers.upload);
 app.use('/api/data', handlers.data);
 app.use('/api/polls', handlers.pollVote);
+
+// ThaID KYC verification broker — โมดูลแยกใน server/verify/ (route: /verify, /api/verify/*)
+// ปิดอยู่จนกว่าจะตั้ง VERIFY_ENABLED=true; ไม่กระทบ route เดิมเมื่อปิด (ตอบ 404)
+app.use(createVerifyRouter(env, dataDir));
 
 app.get('/sitemap.xml', handlers.sitemap);
 app.get('/api/analytics', handlers.analytics);
