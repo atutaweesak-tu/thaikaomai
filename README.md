@@ -12,7 +12,7 @@
 
 ## เริ่มต้นใช้งาน (Dev)
 
-**Prerequisites:** Node.js 20+
+**Prerequisites:** Node.js 22+ (ต้อง ≥ 22.13 — ใช้ core module `node:sqlite` ใน `server/verify/`)
 
 1. ติดตั้ง dependencies
    ```
@@ -62,9 +62,39 @@ Server อ่าน `PORT` จาก env (default `3001`) และต้อง�
 docker compose -f compose.vps.yml up -d --build
 ```
 
+- Base image = `node:22-alpine` (จำเป็นสำหรับ `node:sqlite` ที่ `server/verify/` ใช้ — เดิมเป็น `node:20-alpine`)
 - Container ฟัง port 3001 ภายใน, map ออกมาที่ host port `8080`
 - Mount `./data`, `./public/uploads` (persist ข้อมูล/ไฟล์อัปโหลด) และ `./.env` (read-only)
 - ต้องมี reverse proxy (nginx/Caddy) หน้าบ้านทำ TLS แล้ว proxy เข้า `8080` — ดู `server/api.ts` เรื่องการเชื่อ header `X-Forwarded-For`/`X-Real-IP` เฉพาะจาก proxy ที่ต่อผ่าน private/loopback IP เท่านั้น
+- Boot log ปกติจะมี `ExperimentalWarning: SQLite ...` 1 บรรทัด (จาก `node:sqlite`) — ไม่ใช่ error
+
+#### Deploy ขึ้น VPS จริง
+
+VPS: `root@45.136.253.164`, path `/opt/thaikaomai-new` — **ไม่ใช่ git repo** บนเครื่องนั้น (deploy ด้วยการ copy ไฟล์) ระบบ Laravel + MySQL อยู่คนละ path (`/opt/thaikaomai`) ไม่เกี่ยวกัน
+
+```bash
+# จากเครื่อง dev — ส่งเฉพาะไฟล์ที่เปลี่ยน (ตัวอย่าง: โมดูล verify)
+git archive --format=tar HEAD server/index.ts Dockerfile server/verify -o /tmp/deploy.tar
+scp -i ~/.ssh/thaikaomai_deploy /tmp/deploy.tar root@45.136.253.164:/tmp/
+
+ssh -i ~/.ssh/thaikaomai_deploy root@45.136.253.164 'bash -s' <<'SH'
+set -e
+cd /opt/thaikaomai-new
+TS=$(date +%Y%m%d%H%M%S)
+mkdir -p backups
+tar czf "backups/pre-deploy-$TS.tgz" server/index.ts Dockerfile server/verify 2>/dev/null || true
+docker image tag thaikaomai-new-web "thaikaomai-new-web:rollback-$TS" || true
+tar xf /tmp/deploy.tar -C /opt/thaikaomai-new && rm /tmp/deploy.tar
+docker compose -f compose.vps.yml up -d --build
+docker compose -f compose.vps.yml logs --tail=20 web
+SH
+```
+
+Rollback: `cd /opt/thaikaomai-new && tar xzf backups/pre-deploy-<TS>.tgz && docker compose -f compose.vps.yml up -d --build`
+(หรือใช้ image ที่ tag ไว้: `thaikaomai-new-web:rollback-<TS>`)
+
+> หมายเหตุ: `core.autocrlf=true` บนเครื่อง Windows ทำให้ไฟล์ที่ `git archive` ออกมาเป็น CRLF —
+> ไม่กระทบ Node/Docker แต่ md5 จะต่างจาก `git show HEAD:<file>`; เทียบแบบ `tr -d '\r'` ถ้าต้องตรวจ
 
 ## หน้า Admin
 
