@@ -1,0 +1,67 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ก้อน A/B — Prisma model อ้างอิงสำหรับตารางฝั่ง KYC (api @ /opt/thaikaomai/api)
+//
+// นี่คือสำเนาของ 2 model + 1 enum ที่ต่อท้าย api/prisma/schema.prisma บน VPS ด้วยมือ
+// (api ใช้ Prisma แบบ introspection / `db pull` ไม่มี migration — ตาราง DDL มาจาก
+//  integration/register_verification.sql + apply-verify-tables.sh)
+//
+// ก๊อปบล็อกนี้ไปวางใน api/prisma/schema.prisma แล้ว `yarn prisma generate`
+// (Dockerfile.vps ของ api รัน generate ให้เองตอน build service `api`)
+//
+// delegate ที่ verify-api-routes.ts เรียก:
+//   prisma.register_verification.upsert(...)
+//   prisma.verify_prefill_cache.findUnique / upsert / updateMany
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// ผล KYC ต่อ 1 ครั้งการยืนยัน — keyed ด้วย sid ของ broker (unique → ingest idempotent)
+/// retry ได้หลายครั้งต่อ 1 ใบสมัคร; หลังบ้าน/export เช็คแค่ overall_pass
+model register_verification {
+  id               BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  register_log_id  Int?     // register_log.id — ไม่ตั้ง FK (decouple); prefill mode = null จนกว่า SPA submit
+  sid              String   @unique(map: "uq_register_verification_sid") @db.VarChar(64)
+  mode             String   @default("prefill") @db.VarChar(16) // 'prefill' | 'match'
+  status           register_verification_status @default(pending)
+  provider         String?  @db.VarChar(32)  // 'stub' | 'thaid-oidc'
+  ndid_request_id  String?  @db.VarChar(128) // reference ธุรกรรม NDID (audit/dispute)
+  ial              String?  @db.VarChar(8)
+  is_thai_national Boolean? @db.TinyInt
+  name_match       Boolean? @db.TinyInt
+  birthdate_match  Boolean? @db.TinyInt
+  address_match    Boolean? @db.TinyInt
+  overall_pass     Boolean? @db.TinyInt
+  failure_reason   String?  @db.VarChar(64)
+  id_card_hash     String?  @db.Char(64)   // HMAC-SHA256(pid, VERIFY_PID_PEPPER) — ไม่ใช่เลขบัตรจริง
+  consent_at       DateTime? @db.DateTime(0)
+  consent_version  String?  @db.VarChar(16)
+  requester_ip     String?  @db.VarChar(45)
+  verified_at      DateTime? @db.DateTime(0)
+  created_at       DateTime @default(now()) @db.DateTime(0)
+  updated_at       DateTime @default(now()) @updatedAt @db.DateTime(0)
+
+  @@index([register_log_id], map: "idx_register_verification_log")
+  @@index([id_card_hash], map: "idx_register_verification_idhash")
+  @@index([status], map: "idx_register_verification_status")
+}
+
+enum register_verification_status {
+  pending
+  verified
+  failed
+  expired
+}
+
+/// prefill mode — VerifiedProfile ที่ยืนยันแล้ว เข้ารหัส (AES-256-GCM, key = VERIFY_FIELD_KEY)
+/// transient: SPA ดึงครั้งเดียว (?vs=<sid>) → api set consumed_at (single-use) → sweep เมื่อ expires_at ผ่าน
+model verify_prefill_cache {
+  sid         String    @id @db.VarChar(64)
+  payload_enc String    @db.Text
+  created_at  DateTime  @default(now()) @db.DateTime(0)
+  expires_at  DateTime  @db.DateTime(0) // ~10 นาที (VERIFY_PREFILL_TTL_SECONDS)
+  consumed_at DateTime? @db.DateTime(0)
+
+  @@index([expires_at], map: "idx_verify_prefill_cache_expires")
+}
+
+// ── sweep แถวหมดอายุ (cron ฝั่ง api หรือ setInterval ตอน boot) ────────────────
+//   DELETE FROM verify_prefill_cache WHERE expires_at < NOW() - INTERVAL 1 DAY;
+//   (register_verification เก็บถาวรเพื่อ audit — ไม่ sweep)
