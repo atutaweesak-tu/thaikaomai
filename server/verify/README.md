@@ -26,10 +26,14 @@ broker ไม่เก็บ `profile` ต่อในทั้งสองโ�
 ## สถานะปัจจุบัน
 
 - **ปิดอยู่** จนกว่าจะตั้ง `VERIFY_ENABLED=true` — ทุก route ตอบ 404
-- driver = `stub` (ยังไม่เรียก ThaID จริง): `GET /verify` แสดงข้อความ "อยู่ระหว่างเชื่อมต่อ
-  กับกรมการปกครอง เจ้าหน้าที่จะตรวจสอบเอกสารอีกครั้ง"
-- `identityVerifier.ts` → `ThaidOidcVerifier` เป็นโครงว่าง เติมเมื่อได้ Relying Party
-  credentials จาก DOPA (ดู `// TODO(go-live)`)
+- driver = `stub` (default): `GET /verify` แสดงข้อความ "อยู่ระหว่างเชื่อมต่อกับกรมการปกครอง
+  เจ้าหน้าที่จะตรวจสอบเอกสารอีกครั้ง"
+- driver = `oidc` (ก้อน D — **โครงเสร็จแล้ว**): `identityVerifier.ts` +
+  `oidc.ts` ทำ Authorization Code + PKCE เต็มลูป (token exchange, JWKS RS256/PS256/ES256,
+  ตรวจ id_token iss/aud/exp/nonce, IAL, userinfo, map claims → `VerifiedProfile`)
+  — **ยังไม่ได้ทดสอบกับ ThaID จริง**: ต้องมี RP credentials จาก DOPA + เทียบชื่อ claim
+  (address ทะเบียนบ้าน / ial / geocode) กับสเปกจริง แล้วสลับ `VERIFY_DRIVER=oidc`
+  (ดูหัวข้อ "ก้อน D — ThaID OIDC" ท้ายไฟล์)
 
 ## Flow
 
@@ -134,7 +138,7 @@ VERIFY_S2S_TRUST_ALL_IPS=false
 VERIFY_SESSION_TTL_SECONDS=1800   # อายุ broker session
 VERIFY_PREFILL_TTL_SECONDS=600    # (ฝั่ง api) อายุ verify_prefill_cache — SPA ต้อง consume ภายในเวลานี้
 
-# --- ThaID OIDC (เว้นว่างจนกว่าจะได้ RP จาก DOPA) ---
+# --- ThaID OIDC (เว้นว่างจนกว่าจะได้ RP จาก DOPA; ใช้เมื่อ VERIFY_DRIVER=oidc) ---
 THAID_CLIENT_ID=
 THAID_CLIENT_SECRET=
 THAID_REDIRECT_URI=https://thaikaomai.or.th/verify/callback
@@ -142,8 +146,12 @@ THAID_AUTHORIZE_URL=
 THAID_TOKEN_URL=
 THAID_USERINFO_URL=
 THAID_JWKS_URL=
+THAID_ISSUER=                       # ค่า iss ที่คาดใน id_token — default = origin ของ THAID_AUTHORIZE_URL
 THAID_SCOPES=pid name birthdate address
 THAID_REQUIRED_IAL=2.3
+THAID_TOKEN_AUTH=basic              # basic (Authorization: Basic) | post (client_secret ใน body)
+THAID_ACR_VALUES=                   # ส่งเป็น acr_values ตอน authorize (ว่าง = ไม่ส่ง)
+THAID_CLOCK_SKEW_SECONDS=60         # ผ่อนปรน exp/iat/nbf ของ id_token
 ```
 
 > **Docker:** ต้องใช้ base image `node:22-alpine` ขึ้นไป — `node:sqlite` เป็น core module
@@ -337,10 +345,38 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
 
 ---
 
-## ก้อนถัดไป
+## ก้อน D — ThaID OIDC driver (โครงเสร็จ, รอ RP credentials)
 
-- **ก้อน D — OIDC จริง:** เติม `ThaidOidcVerifier.handleCallback()` + map claims ตามสเปก DOPA
-  เมื่อได้ Relying Party credentials (`identityVerifier.ts` มี `// TODO(go-live)` ลำดับขั้นไว้แล้ว)
+`server/verify/oidc.ts` (ใหม่) + `ThaidOidcVerifier` ใน `identityVerifier.ts` —
+ทำ Authorization Code + PKCE เต็มลูป ไม่มี dependency ภายนอก (ใช้ `node:crypto`):
+
+| ขั้น | ทำอะไร |
+|---|---|
+| `start()` | สร้าง authorize URL: `state` + `nonce` + PKCE S256 + `ui_locales=th` (+ `acr_values` ถ้าตั้ง) |
+| callback (1) | `q.error` → `user_cancelled` (`access_denied`) / `idp_error` |
+| callback (2) | `q.state` === `session.oidc_state` (constant-time) ไม่งั้น `state_mismatch` |
+| callback (3) | `exchangeCode()` — POST token endpoint, PKCE `code_verifier`, client auth `basic`/`post` |
+| callback (4) | `verifyJwtWithJwksUrl()` — JWKS cache 10 นาที + refetch ถ้าเจอ kid ใหม่; RS/PS/ES256; ตรวจ `iss`/`aud`/`azp`/`exp`/`iat`/`nbf`/`nonce` |
+| callback (5) | `pickIal()` + `ialAtLeast()` — IAL < `THAID_REQUIRED_IAL` → `ial_too_low` |
+| callback (6) | `fetchUserinfo()` (Bearer; รองรับ JSON และ signed JWT) — merge ทับ id_token, `sub` ต้องตรง |
+| callback (7) | `mapThaidClaims()` → `VerifiedProfile`; prefill = authoritative, match = `computeFlags` + `citizenIdMatches` |
+
+ไม่ log: pid เต็ม / access_token / id_token / ตัว claims
+
+### ก่อนสลับ `VERIFY_DRIVER=oidc` (go-live)
+
+1. ได้ RP credentials + endpoint URLs จาก DOPA → ตั้ง `THAID_*` ให้ครบ (validate เตือนตอน boot)
+2. **เทียบชื่อ claim จริงกับสเปก DOPA** แล้วแก้ `mapThaidClaims()` — จุดที่เดาไว้ (มี fallback หลายชื่อ):
+   - `pid` / เลข 13 หลัก
+   - `given_name` / `middle_name` / `family_name` (ภาษาไทย)
+   - `birthdate` — `normalizeBirthdate()` รองรับ ค.ศ./พ.ศ. + `YYYYMMDD` + `DD/MM/YYYY` แล้ว
+   - `address` — OIDC address object vs sub-claim ทะเบียนบ้าน (`house_no`/`village_no`/`sub_district`/…)
+   - `nationality` — ตอนนี้ fallback: ไม่มี claim + เลข 13 หลัก → ถือว่าคนไทย
+   - geocode TIS-1099 — `*_code` ถ้า IdP ส่งมา (ข้าม resolve ชื่อ→id ฝั่ง api)
+   - IAL — `ial` / `acr` (parse ตัวเลขท้าย) ; `ndid_request_id` audit ref
+3. ตรวจว่า DOPA ต้อง `acr_values` / `claims` param แบบไหน → เติมใน `start()`
+4. token endpoint auth: `basic` หรือ `post` → `THAID_TOKEN_AUTH`
+5. security assessment / pen-test ตามที่ DOPA/DGA กำหนด
 
 ## ค้างไว้ก่อน go-live (ดูบทสนทนาออกแบบ)
 
@@ -349,5 +385,5 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
   (ตอนนี้ ก้อน B ปล่อยเป็น `NULL` เพราะ broker ไม่ได้ส่งมาใน ingest payload)
 - `VERIFY_FIELD_KEY` ควรมาจาก KMS/secret manager ไม่ใช่ไฟล์ `.env` ธรรมดา
 - ลงทะเบียน `THAID_REDIRECT_URI` (โดเมน apex สุดท้าย) กับ DOPA ตอนยื่น RP
-- เติม `ThaidOidcVerifier.handleCallback()` + map claims จริงตามสเปก DOPA
+- ยืนยันชื่อ claim จริงใน `mapThaidClaims()` + param ที่ DOPA ต้องการใน `start()` (ดูหัวข้อ "ก้อน D")
 - security assessment / pen-test ตามที่ DOPA/DGA กำหนดตอน onboard RP

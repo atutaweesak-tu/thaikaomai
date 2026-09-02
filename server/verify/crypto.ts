@@ -21,6 +21,13 @@ export function timingSafeEqualHex(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ba, bb);
 }
 
+/** constant-time string compare (ใช้เทียบ OIDC state/nonce) — hash ก่อนเทียบ กันหลุด length */
+export function timingSafeEqualStr(a: string, b: string): boolean {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 // ── S2S request signing (ใช้ทั้ง Laravel→broker และ broker→Laravel) ────────────
 // signature = HMAC-SHA256( `${timestamp}.${nonce}.${rawBody}` , sharedSecret )
 export function signS2S(rawBody: string, timestamp: string, nonce: string, secret: string): string {

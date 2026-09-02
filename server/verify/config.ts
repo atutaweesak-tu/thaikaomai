@@ -10,8 +10,12 @@ export interface ThaidOidcConfig {
   tokenUrl: string;
   userinfoUrl: string;
   jwksUrl: string;
+  issuer: string;        // ค่า iss ที่คาดใน id_token — default = origin ของ authorizeUrl
   scopes: string;        // space-separated
   requiredIal: string;   // เช่น "2.3"
+  tokenAuthMethod: 'basic' | 'post'; // client auth ที่ token endpoint (default basic)
+  acrValues: string;     // ส่งเป็น acr_values ตอน authorize (ว่าง = ไม่ส่ง)
+  clockSkewSeconds: number; // ผ่อนปรนเวลา exp/iat/nbf (default 60)
 }
 
 export interface VerifyConfig {
@@ -40,6 +44,14 @@ export interface VerifyConfig {
   trustAllS2sIps: boolean; // testing เท่านั้น
 
   thaid: ThaidOidcConfig;
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
 }
 
 function parseKey(raw: string): Buffer | null {
@@ -74,16 +86,21 @@ export function loadVerifyConfig(env: Record<string, string>): VerifyConfig {
     thaid: undefined as unknown as ThaidOidcConfig, // set ด้านล่าง
   } as VerifyConfig;
 
+  const authorizeUrl = env.THAID_AUTHORIZE_URL || '';
   cfg.thaid = {
     clientId: env.THAID_CLIENT_ID || '',
     clientSecret: env.THAID_CLIENT_SECRET || '',
     redirectUri: env.THAID_REDIRECT_URI || '',
-    authorizeUrl: env.THAID_AUTHORIZE_URL || '',
+    authorizeUrl,
     tokenUrl: env.THAID_TOKEN_URL || '',
     userinfoUrl: env.THAID_USERINFO_URL || '',
     jwksUrl: env.THAID_JWKS_URL || '',
+    issuer: env.THAID_ISSUER || originOf(authorizeUrl),
     scopes: env.THAID_SCOPES || 'pid name birthdate address',
     requiredIal: env.THAID_REQUIRED_IAL || '2.3',
+    tokenAuthMethod: env.THAID_TOKEN_AUTH === 'post' ? 'post' : 'basic',
+    acrValues: env.THAID_ACR_VALUES || '',
+    clockSkewSeconds: Math.max(0, Math.min(300, Number(env.THAID_CLOCK_SKEW_SECONDS || 60))),
   };
 
   if (enabled) validateOnBoot(cfg);
@@ -106,6 +123,8 @@ function validateOnBoot(cfg: VerifyConfig) {
       THAID_REDIRECT_URI: t.redirectUri, THAID_AUTHORIZE_URL: t.authorizeUrl,
       THAID_TOKEN_URL: t.tokenUrl, THAID_USERINFO_URL: t.userinfoUrl, THAID_JWKS_URL: t.jwksUrl,
     })) if (!v) miss.push(k);
+    // issuer default = origin ของ authorizeUrl; เตือนเฉพาะเมื่อ derive ไม่ได้
+    if (!t.issuer) miss.push('THAID_ISSUER (ตั้ง iss ที่คาดใน id_token — derive จาก THAID_AUTHORIZE_URL ไม่ได้)');
   }
   if (miss.length) {
     console.warn('[verify] VERIFY_ENABLED=true แต่ยังตั้งค่าไม่ครบ — ระบบยืนยันตัวตนจะทำงานไม่สมบูรณ์:\n  - ' + miss.join('\n  - '));
