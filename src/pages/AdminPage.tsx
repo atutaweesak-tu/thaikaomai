@@ -649,7 +649,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'summary', label: 'สรุปข่าว', type: 'textarea', maxLength: 500 },
       { key: 'content', label: 'เนื้อหาเต็ม', type: 'textarea', maxLength: 20000 },
       { key: 'date', label: 'วันที่แสดง', type: 'text' },
-      { key: 'image', label: 'รูปภาพ', type: 'image-upload' },
+      { key: 'image', label: 'รูปภาพ — แนะนำแนวนอน 16:9 อย่างน้อย 1600×900px ไม่เกิน 5MB', type: 'image-upload' },
       {
         key: 'category', label: 'หมวดหมู่', type: 'select',
         options: Array.from(new Set([
@@ -677,7 +677,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     policies: [
       { key: 'title', label: 'ชื่อนโยบาย', type: 'text', maxLength: 200 },
       { key: 'description', label: 'รายละเอียด', type: 'textarea', maxLength: 2000 },
-      { key: 'iconImage', label: 'รูป Icon (อัพโหลดจากเครื่อง)', type: 'image-upload' },
+      { key: 'iconImage', label: 'รูป Icon (อัพโหลดจากเครื่อง) — แนะนำอัตราส่วน 16:9 เช่น 1200×675px ไม่เกิน 5MB', type: 'image-upload' },
       { key: 'icon', label: 'Icon (Lucide name) — ใช้ถ้าไม่มีรูป', type: 'text' },
       { key: 'color', label: 'สีพื้นหลัง', type: 'color-picker' },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
@@ -692,7 +692,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'role', label: 'ตำแหน่ง', type: 'text', maxLength: 100 },
       { key: 'bio', label: 'ประวัติย่อ (แสดงในการ์ดหน้ารวมทีม)', type: 'textarea', maxLength: 500 },
       { key: 'content', label: 'ประวัติฉบับเต็ม (แสดงในหน้าโปรไฟล์รายบุคคลเท่านั้น — ไม่บังคับกรอก)', type: 'textarea', maxLength: 20000 },
-      { key: 'image', label: 'รูปภาพ', type: 'image-upload' },
+      { key: 'image', label: 'รูปภาพ — แนะนำภาพครึ่งตัว/เต็มตัวแนวตั้ง เช่น 1000×1200px (ระบบจะครอบเป็นจัตุรัสหรือ 3:4 อัตโนมัติ) ไม่เกิน 5MB', type: 'image-upload' },
       { key: 'category', label: 'ประเภท', type: 'select', options: ['chairman', 'leader', 'expert'], optionLabels: ['ประธานพรรค', 'ผู้นำพรรค', 'กรรมการบริหาร'] },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
       { key: 'featuredHome', label: 'แสดงในหน้าหลัก (เลือกได้สูงสุด 3 คน)', type: 'toggle' },
@@ -700,7 +700,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     homeBlocks: [
       { key: 'title', label: 'หัวข้อ', type: 'text', maxLength: 200 },
       { key: 'description', label: 'รายละเอียด', type: 'textarea', maxLength: 500 },
-      { key: 'image', label: 'รูปภาพ', type: 'image-upload' },
+      { key: 'image', label: 'รูปภาพ — แนะนำแนวนอน 16:9 เช่น 1200×675px ไม่เกิน 5MB', type: 'image-upload' },
       { key: 'link', label: 'ลิงก์ปลายทาง', type: 'text' },
       { key: 'buttonText', label: 'ข้อความปุ่ม', type: 'text', maxLength: 50 },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
@@ -1061,7 +1061,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
               {/* QR Code Upload */}
               <div className="mt-6">
-                <label className="block text-xs font-bold text-white/50 mb-2">QR Code โซเชียล</label>
+                <label className="block text-xs font-bold text-white/50 mb-2">QR Code โซเชียล — แนะนำภาพจัตุรัส เช่น 600×600px ไม่เกิน 5MB</label>
                 <ImageUploadField value={siteSettings.contact.qrCode || ''} onChange={v => setContactInfo('qrCode', v)} label="QR Code" />
               </div>
             </div>
@@ -1104,7 +1104,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
                 {/* Image upload */}
                 <div>
-                  <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Popup</label>
+                  <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Popup — แนะนำแนวตั้งหรือจัตุรัส เช่น 800×1000px ไม่เกิน 5MB</label>
                   <ImageUploadField value={siteSettings.popup.image || ''} onChange={v => setPopup('image', v)} label="Popup" />
                 </div>
 
@@ -1178,7 +1178,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                         rows={2} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-white/50 mb-1">รูปภาพ Banner (ถ้าต้องการ)</label>
+                      <label className="block text-xs font-bold text-white/50 mb-1">รูปภาพ Banner (ถ้าต้องการ) — แนะนำแนวนอนกว้างมาก เช่น 2100×700px ไม่เกิน 5MB</label>
                       {imgUrl && (
                         <>
                           <div className="relative mb-2 rounded-xl overflow-hidden aspect-[21/5]">
@@ -1219,22 +1219,25 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   <label className="block text-xs font-bold text-white/50 mb-1">ประวัติความเป็นมา</label>
                   <textarea value={siteSettings.about.history} onChange={e => setAbout('history', e.target.value)}
                     rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none mb-3" />
+                  <p className="text-[11px] text-white/30 mb-1.5">รูปประกอบ — แนะนำอัตราส่วน 16:9 เช่น 1200×675px ไม่เกิน 5MB</p>
                   <ImageUploadField value={siteSettings.about.historyImage || ''} onChange={v => setAbout('historyImage', v)} label="รูปประกอบ" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-1">อุดมการณ์พรรค</label>
                   <textarea value={siteSettings.about.ideology} onChange={e => setAbout('ideology', e.target.value)}
                     rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none mb-3" />
+                  <p className="text-[11px] text-white/30 mb-1.5">รูปประกอบ — แนะนำอัตราส่วน 16:9 เช่น 1200×675px ไม่เกิน 5MB</p>
                   <ImageUploadField value={siteSettings.about.ideologyImage || ''} onChange={v => setAbout('ideologyImage', v)} label="รูปประกอบ" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-white/50 mb-1">วิสัยทัศน์</label>
                   <textarea value={siteSettings.about.vision} onChange={e => setAbout('vision', e.target.value)}
                     rows={3} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors resize-none mb-3" />
+                  <p className="text-[11px] text-white/30 mb-1.5">รูปประกอบ — แนะนำอัตราส่วน 16:9 เช่น 1200×675px ไม่เกิน 5MB</p>
                   <ImageUploadField value={siteSettings.about.visionImage || ''} onChange={v => setAbout('visionImage', v)} label="รูปประกอบ" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Banner หน้าเกี่ยวกับพรรค</label>
+                  <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Banner หน้าเกี่ยวกับพรรค — แนะนำแนวนอนกว้างมาก เช่น 1920×600px ไม่เกิน 5MB</label>
                   <ImageUploadField value={siteSettings.about.image || ''} onChange={v => setAbout('image', v)} label="Banner" />
                 </div>
               </div>

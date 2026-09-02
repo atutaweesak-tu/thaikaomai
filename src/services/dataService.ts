@@ -205,12 +205,34 @@ function broadcastSettings(s: SiteSettings) {
   _settingsCallbacks.forEach(cb => cb(s));
 }
 
+async function fetchAndBroadcastSettings() {
+  try {
+    const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.hero) {
+        const merged = mergeSettings(data);
+        localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(merged));
+        broadcastSettings(merged);
+      }
+    }
+  } catch (err) {
+    console.error('[dataService] settings fetch error:', err);
+  }
+}
+
 export const subscribeToSiteSettings = (callback: (settings: SiteSettings) => void): Unsubscribe => {
   const raw = localStorage.getItem(SETTINGS_LS_KEY);
   if (raw) { try { callback(mergeSettings(JSON.parse(raw))); } catch { callback(DEFAULT_SETTINGS); } }
   else { callback(DEFAULT_SETTINGS); }
 
   _settingsCallbacks.push(callback);
+
+  // ยิง fetch ตรงครั้งเดียวคู่กับ SSE เสมอ — ไม่รอผลจาก SSE อย่างเดียว เพราะบนเน็ตมือถือ/หลัง Cloudflare
+  // การเชื่อมต่อ SSE บางครั้งค้างหรือหลุดช้ากว่าจะ error (ยิ่งถ้าเพิ่งเปิดเว็บครั้งแรกบนเครื่องนั้น
+  // ค่าที่โชว์จาก localStorage ด้านบนอาจเป็นค่าเก่าที่ค้างมาจากการเข้าชมครั้งก่อนๆ) request ตรงนี้ทำให้ได้
+  // ค่าสดมาทับภายในหนึ่ง round-trip ปกติ โดยไม่ต้องพึ่งว่า SSE จะต่อติดเร็วแค่ไหน
+  fetchAndBroadcastSettings();
 
   let es: EventSource | null = null;
   let fallback: ReturnType<typeof setInterval> | null = null;
@@ -231,21 +253,7 @@ export const subscribeToSiteSettings = (callback: (settings: SiteSettings) => vo
     };
     es.onerror = () => {
       es?.close(); es = null;
-      if (!fallback) fallback = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.hero) {
-              const merged = mergeSettings(data);
-              localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(merged));
-              broadcastSettings(merged);
-            }
-          }
-        } catch (err) {
-          console.error('[dataService] settings polling error:', err);
-        }
-      }, 3000);
+      if (!fallback) fallback = setInterval(fetchAndBroadcastSettings, 3000);
     };
   }
 

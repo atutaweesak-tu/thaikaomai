@@ -15,7 +15,8 @@ export const POLICIES: Policy[] = [
     icon: 'BookOpen',
     color: '#E6FF00',
     order: 0,
-    featuredHome: true
+    featuredHome: true,
+    iconImage: '/uploads/policy-header-education.svg'
   },
   {
     id: 'edu-free-tuition',
@@ -90,7 +91,8 @@ export const POLICIES: Policy[] = [
     icon: 'TrendingUp',
     color: '#E6FF00',
     order: 9,
-    featuredHome: true
+    featuredHome: true,
+    iconImage: '/uploads/policy-header-economy.svg'
   },
   {
     id: 'eco-fdi-team',
@@ -197,7 +199,8 @@ export const POLICIES: Policy[] = [
     icon: 'Heart',
     color: '#E6FF00',
     order: 22,
-    featuredHome: true
+    featuredHome: true,
+    iconImage: '/uploads/policy-header-life.svg'
   },
   {
     id: 'life-water',
@@ -288,7 +291,8 @@ export const POLICIES: Policy[] = [
     icon: 'ShieldCheck',
     color: '#E6FF00',
     order: 33,
-    featuredHome: true
+    featuredHome: true,
+    iconImage: '/uploads/policy-header-values.svg'
   },
   {
     id: 'values-anti-corruption',

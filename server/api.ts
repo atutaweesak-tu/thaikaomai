@@ -943,6 +943,9 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
   function renderSpaHtml(req: IncomingMessage, res: ServerResponse) {
     trackPageview((req.url || '/').split('?')[0]);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // ห้ามแคช index.html — มันอ้าง asset bundle ตาม hash ล่าสุดเสมอ ถ้าเบราว์เซอร์ (โดยเฉพาะมือถือ)
+    // แคชหน้านี้ไว้จาก visit ก่อน จะยังชี้ไป bundle เก่าแม้ deploy ใหม่ไปแล้ว ทำให้เห็น UI ไม่อัพเดต
+    res.setHeader('Cache-Control', 'no-store');
     const indexPath = path.join(distDir, 'index.html');
     let html = fs.readFileSync(indexPath, 'utf-8');
     const host = req.headers.host || '';

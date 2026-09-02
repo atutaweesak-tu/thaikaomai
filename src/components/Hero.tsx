@@ -111,6 +111,11 @@ export default function Hero() {
   const currentSlide = slides[slide];
   const handleSlideClick = () => openSafeUrl(currentSlide?.link);
 
+  // imageOnly บนมือถือ: ใช้ object-contain แทน object-cover เพราะกล่องรูปบนมือถืออาจไม่ได้สัดส่วน
+  // 16:9 พอดีเป๊ะเสมอ (ขึ้นกับ viewport จริงของแต่ละเครื่อง) — cover จะครอปเนื้อหา/ข้อความริมภาพ
+  // หายไปได้ ส่วน contain รับประกันว่าเห็นรูปครบทุกครั้ง ยอมมีแถบขอบว่างบ้างดีกว่าเนื้อหาหาย
+  // จอ md ขึ้นไปกลับไปใช้ cover เต็มจอแบบเดิม
+  const imageOnlyObjectFit = 'object-contain md:object-cover';
   const carousel = slides.length > 0 && (
     <AnimatePresence mode="wait">
       <motion.img
@@ -122,7 +127,7 @@ export default function Hero() {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.8 }}
         onClick={currentSlide.link ? handleSlideClick : undefined}
-        className={`absolute inset-0 w-full h-full object-cover ${currentSlide.link ? 'cursor-pointer' : ''}`}
+        className={`absolute inset-0 w-full h-full ${isImageOnly ? imageOnlyObjectFit : 'object-cover'} ${currentSlide.link ? 'cursor-pointer' : ''}`}
         referrerPolicy="no-referrer"
       />
     </AnimatePresence>
@@ -140,8 +145,11 @@ export default function Hero() {
   );
 
   if (h.layout === 'imageOnly') {
+    // รูปที่แนะนำให้แอดมินอัพโหลดคือ 16:9 (ดูคำแนะนำในหน้า admin) — บนมือถือใช้ aspect-video
+    // ตามสัดส่วนจริงของรูปแทน min-h-screen เพราะถ้าบังคับเต็มจอสูงบนจอแคบๆ object-cover จะครอปซ้าย-ขวา
+    // ของรูปแนวนอนออกไปเยอะมาก (ข้อความ/องค์ประกอบสำคัญที่อยู่ริมภาพหายไป) จอ md ขึ้นไปค่อยเต็มจอแบบเดิม
     return (
-      <section className="relative min-h-screen overflow-hidden bg-brand-navy">
+      <section className="relative mt-16 md:mt-0 aspect-video md:min-h-screen overflow-hidden bg-brand-navy">
         {carousel}
         {dots}
       </section>
