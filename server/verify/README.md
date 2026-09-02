@@ -229,12 +229,118 @@ api: S2S-sign → `POST {VERIFY_PUBLIC_BASE}/api/verify/session` → คืน `
 
 ---
 
+## สิ่งที่ฝั่ง SPA (registration web `/opt/thaikaomai/web`, React/Vite/Mantine) ต้องเพิ่ม — ก้อน C
+
+ก๊อป `integration/verify-prefill-client.ts` (ไม่มี dependency, ไม่ import react) ไปวางในโปรเจกต์ web
+
+### flow (prefill / verify-first)
+
+1. หน้า register: ผู้ใช้กรอกเลขบัตร 13 หลัก → กดปุ่ม **"ยืนยันตัวตนด้วย ThaID"**
+   → `startThaidVerify({ citizenId, apiBase })` → `window.location.assign(verifyUrl)`
+2. ThaID เสร็จ → redirect กลับ `…/register?vs=<sid>&kyc=verified&ref=<sid>`
+3. ตอน mount หน้า register:
+   - `readVerifyReturn()` → ถ้า `kyc==='verified' && sid` → `consumePrefill(sid)` (เรียกได้ครั้งเดียว)
+   - `toRegisterFormPrefill(profile)` → `form.setValues(...)` + ตั้งทุก key ใน `LOCKED_FIELD_KEYS` เป็น `readOnly`
+   - `rememberVerifiedSid(sid)` (sessionStorage) + `clearVerifyReturnParams()` (กัน refresh ยิง consume ซ้ำ → `410`)
+   - `kyc==='failed'` → แสดงข้อความ "เจ้าหน้าที่จะตรวจเอกสารด้วยวิธีปกติ" ไม่ต้อง consume
+   - `PrefillError('gone')` → ลิงก์ถูกใช้/หมดอายุ → ปุ่มให้เริ่มยืนยันใหม่
+4. ตอน submit ฟอร์ม: แนบ `sid` (`getVerifiedSid()`) ไปกับ payload
+   → api สร้าง `register_log` แล้ว `UPDATE register_verification SET register_log_id = ? WHERE sid = ? AND register_log_id IS NULL`
+   → `clearVerifiedSid()`
+
+> เลขบัตรที่ผู้ใช้กรอกเองก่อนกดยืนยัน = แค่ seed ให้ broker เริ่ม ThaID เท่านั้น
+> ค่าที่ล็อกในฟอร์มหลัง prefill มาจาก ThaID (authoritative) ทั้งหมด รวมเลขบัตรด้วย
+
+### ตัวอย่าง React hook + ปุ่ม (ADAPT: ผูกกับ Mantine `useForm` ของ SPA)
+
+```tsx
+import { useEffect, useState } from 'react';
+import {
+  startThaidVerify, readVerifyReturn, consumePrefill, toRegisterFormPrefill,
+  clearVerifyReturnParams, rememberVerifiedSid, getVerifiedSid,
+  isValidThaiCitizenId, LOCKED_FIELD_KEYS, PrefillError,
+} from './verify-prefill-client'; // ปรับ path ตามโปรเจกต์ web
+
+type PrefillState =
+  | { status: 'idle' | 'loading' }
+  | { status: 'ready'; locked: readonly string[] }
+  | { status: 'failed' }
+  | { status: 'error'; message: string };
+
+/** เรียกครั้งเดียวใน component หน้า register — คืนสถานะ prefill + เติมค่าเข้าฟอร์มให้ */
+export function useThaidPrefill(form: { setValues: (v: Record<string, unknown>) => void }) {
+  const [state, setState] = useState<PrefillState>({ status: 'idle' });
+
+  useEffect(() => {
+    const { sid, kyc } = readVerifyReturn();
+    if (!sid) return;
+    if (kyc === 'failed') { clearVerifyReturnParams(); setState({ status: 'failed' }); return; }
+    if (kyc !== 'verified') return;
+
+    setState({ status: 'loading' });
+    consumePrefill(sid)
+      .then(({ profile }) => {
+        form.setValues(toRegisterFormPrefill(profile) as Record<string, unknown>);
+        rememberVerifiedSid(sid);
+        setState({ status: 'ready', locked: LOCKED_FIELD_KEYS });
+      })
+      .catch((e: unknown) => {
+        setState({
+          status: 'error',
+          message: e instanceof PrefillError ? e.message : 'ดึงข้อมูลที่ยืนยันแล้วไม่สำเร็จ',
+        });
+      })
+      .finally(() => clearVerifyReturnParams());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return state;
+}
+
+export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; apiBase?: string }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const canStart = isValidThaiCitizenId(citizenId);
+
+  async function onClick() {
+    setBusy(true); setErr('');
+    try {
+      const { verifyUrl } = await startThaidVerify({ citizenId, apiBase });
+      window.location.assign(verifyUrl); // ออกจาก SPA ไป broker/ThaID
+    } catch (e) {
+      setBusy(false);
+      setErr(e instanceof PrefillError ? e.message : 'เริ่มยืนยันตัวตนไม่สำเร็จ');
+    }
+  }
+
+  return (
+    <div>
+      <button type="button" onClick={onClick} disabled={!canStart || busy}>
+        {busy ? 'กำลังพาไปยืนยัน…' : 'ยืนยันตัวตนด้วย ThaID (ช่วยให้ตรวจสอบเร็วขึ้น)'}
+      </button>
+      {err && <p role="alert">{err}</p>}
+    </div>
+  );
+}
+
+// ตอน submit:
+//   const sid = getVerifiedSid();
+//   await api.post('/register', { ...form.values, verifySid: sid ?? undefined });
+```
+
+### หมายเหตุ
+
+- `verify-prefill-client.ts` typecheck ผ่านใน repo นี้ (framework-agnostic) แต่ตัวอย่าง `.tsx`
+  ข้างบนต้องก๊อปไปไว้ในโปรเจกต์ web ที่มี `@types/react` เอง
+- `apiBase` default `''` (same-origin) — SPA `www.` เรียก api `www.` โดเมนเดียวกัน
+- `birthDate` ที่ได้เป็น ค.ศ. `YYYY-MM-DD` — ถ้าฟอร์มใช้ พ.ศ. ใช้ `toThaiDateParts()`
+- geocode (รหัส TIS-1099) ถ้ามี ใช้เลือก dropdown จังหวัด/อำเภอ/ตำบลได้เลย ไม่ต้อง map ชื่อ→id
+
+---
+
 ## ก้อนถัดไป
 
-- **ก้อน C — SPA:** ปุ่ม "ยืนยันด้วย ThaID" บนหน้า register → `POST /api/verify/start` →
-  หลัง redirect กลับ (`?vs=<sid>`) เรียก `GET /api/verify/prefill` → เติมฟอร์ม + ล็อก
-  → ตอน submit ให้ api `UPDATE register_verification SET register_log_id=? WHERE sid=?`
-- **ก้อน D — OIDC จริง:** เติม `ThaidOidcVerifier.handleCallback()` เมื่อได้ RP จาก DOPA
+- **ก้อน D — OIDC จริง:** เติม `ThaidOidcVerifier.handleCallback()` + map claims ตามสเปก DOPA
+  เมื่อได้ Relying Party credentials (`identityVerifier.ts` มี `// TODO(go-live)` ลำดับขั้นไว้แล้ว)
 
 ## ค้างไว้ก่อน go-live (ดูบทสนทนาออกแบบ)
 
