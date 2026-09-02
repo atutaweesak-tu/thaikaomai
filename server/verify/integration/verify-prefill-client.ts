@@ -88,7 +88,8 @@ function joinUrl(base: string, path: string): string {
 // ── (1) เริ่มยืนยัน ─────────────────────────────────────────────────────────
 
 /**
- * เวอร์ชันข้อความขอความยินยอม PDPA ปัจจุบัน — bump เมื่อแก้ข้อความ consent
+ * เวอร์ชันข้อความขอความยินยอม PDPA ปัจจุบัน — ต้องตรงกับแถวล่าสุดใน
+ * server/verify/CONSENT.md หมวด D ; bump ทุกครั้งที่แก้ข้อความ consent หมวด A/B
  * (สมาชิกพรรค = ข้อมูลอ่อนไหว ม.26) api จะบันทึกคู่กับ timestamp ฝั่ง server
  */
 export const DEFAULT_CONSENT_VERSION = '2026-09-v1';

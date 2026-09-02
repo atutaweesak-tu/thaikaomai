@@ -42,14 +42,17 @@
 
 ## 3. PDPA / กฎหมาย
 
-- [ ] **DPIA** (Data Protection Impact Assessment) — สมาชิกพรรค = ข้อมูลอ่อนไหว ม.26
-- [ ] เขียน **ข้อความขอความยินยอม** จริง + หน้า/ลิงก์นโยบายความเป็นส่วนตัว
-      → ใส่ใน `ThaidVerifyButton` (ตอนนี้เป็น placeholder) + bump `DEFAULT_CONSENT_VERSION`
-- [ ] api: **ปฏิเสธคำขอ `/api/verify/start` ที่ไม่มี consent** / `version` ไม่อยู่ในรายการที่ใช้
+- [~] **DPIA** — ร่าง v0.1 อยู่ที่ [`DPIA.md`](./DPIA.md); **ต้องให้ DPO + ที่ปรึกษากฎหมายรับรอง**
+      (เติมข้อมูลทางการพรรคในช่อง `[...]`, กำหนด retention เป็นตัวเลข, ลงนามในข้อ 8)
+- [~] **ข้อความขอความยินยอม** — ร่าง v0.1 อยู่ที่ [`CONSENT.md`](./CONSENT.md); หมวด A ใส่ใน
+      `ThaidVerifyButton` ใน README แล้ว (ยังชี้ `PRIVACY_NOTICE_URL` placeholder) — ต้อง DPO รับรอง +
+      ทำหน้าแสดงหมวด B + ยืนยัน `DEFAULT_CONSENT_VERSION` = `2026-09-v1`
+- [ ] api: **ปฏิเสธคำขอ `/api/verify/start` ที่ไม่มี consent** / `version` ไม่อยู่ในตาราง `CONSENT.md` หมวด D
       (plumbing เก็บ `consent_at`/`consent_version` ครบสายแล้ว — ก้อน E)
-- [ ] retention policy — เก็บ `register_verification` นานแค่ไหน, ลบเมื่อไร
-- [ ] แจ้ง/ขึ้นทะเบียนกับ สคส. ถ้าจำเป็น; ผู้ควบคุมข้อมูล + DPO
-- [ ] สิทธิเจ้าของข้อมูล (เข้าถึง/ลบ/คัดค้าน) — ขั้นตอนรองรับ
+- [ ] retention policy — กำหนดตัวเลข `[X]` ปีใน `DPIA.md`/`CONSENT.md` + ทำงานลบ/anonymize อัตโนมัติ
+- [ ] เปิด access log การเข้าถึงผล KYC (DPIA ความเสี่ยง R5)
+- [ ] ขั้นตอนใช้สิทธิเจ้าของข้อมูล (DPIA ข้อ 7) + ขั้นตอนแจ้งเหตุละเมิด 72 ชม. (ม.37)
+- [ ] แต่งตั้ง DPO + ประกาศช่องทางติดต่อ; แจ้ง/ปรึกษา สคส. ตามที่ DPO วินิจฉัย (DPIA ข้อ 8)
 
 ## 4. หลังบ้าน (ส่วนที่ 2)
 

@@ -318,6 +318,9 @@ export function useThaidPrefill(form: { setValues: (v: Record<string, unknown>) 
 
 import { DEFAULT_CONSENT_VERSION } from './verify-prefill-client';
 
+// ADAPT: หน้า/เอกสารที่แสดงข้อความเต็มใน CONSENT.md หมวด B
+const PRIVACY_NOTICE_URL = '/privacy/thaid-verify';
+
 export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; apiBase?: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -342,8 +345,12 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
     <div>
       <label>
         <input type="checkbox" checked={consented} onChange={e => setConsented(e.target.checked)} />
-        {' '}ข้าพเจ้ายินยอมให้พรรคฯ ตรวจสอบและประมวลผลข้อมูลส่วนบุคคล (รวมข้อมูลอ่อนไหว)
-        กับกรมการปกครองเพื่อยืนยันตัวตน ตามนโยบายความเป็นส่วนตัว {/* ADAPT: ลิงก์ข้อความ consent จริง */}
+        {' '}ข้าพเจ้า<b>ยินยอมโดยชัดแจ้ง</b>ให้พรรคไทยก้าวใหม่ ประมวลผลข้อมูลส่วนบุคคลของข้าพเจ้า
+        ซึ่งรวมถึง<b>ข้อมูลการเป็นสมาชิกพรรคการเมือง (ข้อมูลอ่อนไหว)</b>และ<b>เลขประจำตัวประชาชน</b>
+        เพื่อยืนยันตัวตนและตรวจสอบความถูกต้องของข้อมูลกับกรมการปกครองผ่านระบบ ThaID ตามที่ระบุใน{' '}
+        <a href={PRIVACY_NOTICE_URL} target="_blank" rel="noreferrer">ประกาศการคุ้มครองข้อมูลส่วนบุคคลสำหรับการยืนยันตัวตน</a>
+        {' '}— ข้าพเจ้าทราบว่าการยืนยันตัวตนนี้เป็นทางเลือก และสามารถถอนความยินยอมได้ภายหลัง
+        {/* ข้อความเต็ม + เวอร์ชัน: server/verify/CONSENT.md — bump DEFAULT_CONSENT_VERSION เมื่อแก้ */}
       </label>
       <button type="button" onClick={onClick} disabled={!canStart || busy}>
         {busy ? 'กำลังพาไปยืนยัน…' : 'ยืนยันตัวตนด้วย ThaID (ช่วยให้ตรวจสอบเร็วขึ้น)'}
@@ -406,6 +413,8 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
 โค้ด broker + api routes + SPA client + OIDC driver + consent plumbing (ก้อน A–E) เสร็จแล้ว
 ที่เหลือ = งาน DOPA / infra / PDPA — checklist เต็มอยู่ที่ **[`GO-LIVE.md`](./GO-LIVE.md)**
 
-หัวข้อหลัก: RP onboarding + ยืนยันชื่อ claim ใน `mapThaidClaims()` · `VERIFY_FIELD_KEY` จาก KMS ·
-ลงทะเบียน `THAID_REDIRECT_URI` กับ DOPA · เขียนข้อความ consent จริง + api บังคับ consent ·
-DPIA + retention · pen-test
+เอกสาร PDPA: **[`DPIA.md`](./DPIA.md)** + **[`CONSENT.md`](./CONSENT.md)** — ร่าง v0.1 แล้ว
+รอ DPO + ที่ปรึกษากฎหมายรับรอง (เติมข้อมูลพรรค, กำหนด retention เป็นตัวเลข, ลงนาม)
+
+หัวข้อหลักที่เหลือ: RP onboarding + ยืนยันชื่อ claim ใน `mapThaidClaims()` · `VERIFY_FIELD_KEY` จาก KMS ·
+ลงทะเบียน `THAID_REDIRECT_URI` กับ DOPA · api บังคับ consent · retention job · access log · pen-test
