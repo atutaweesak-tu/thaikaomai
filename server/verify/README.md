@@ -35,6 +35,12 @@ broker ไม่เก็บ `profile` ต่อในทั้งสองโ�
   (address ทะเบียนบ้าน / ial / geocode) กับสเปกจริง แล้วสลับ `VERIFY_DRIVER=oidc`
   (ดูหัวข้อ "ก้อน D — ThaID OIDC" ท้ายไฟล์)
 
+## ทดสอบ
+
+`npm run test:verify` — smoke test (`server/verify/smoke.test.mjs`, 53 เคส): crypto interop,
+broker stub flow (match/prefill/consent) ผ่าน `routes.ts`+`store.ts`, OIDC driver กับ mock IdP
+(happy + fail paths), api routes + SPA client (`integration/`) end-to-end · `npm run lint` = `tsc --noEmit`
+
 ## Flow
 
 ### match mode (verify-after — มีใบสมัครแล้ว)
@@ -42,13 +48,13 @@ broker ไม่เก็บ `profile` ต่อในทั้งสองโ�
 ```
 [SPA submit ฟอร์ม → api เก็บ register_log (เหมือนเดิม)] ─────────────────────────┐
                                                                                  │
-(0) SPA  POST /api/verify/start   { mode:'match', applicationRef, matchFields }   │ api
-(1) api  S2S POST {broker}/api/verify/session   ────────────────────────────────►│ broker
+(0) SPA  POST /api/verify/start  { mode:'match', applicationRef, matchFields, consent:{version} } │ api
+(1) api  S2S POST {broker}/api/verify/session  (+ consent.acceptedAt = server time) ──────────►│ broker
          ◄──── { sid, verifyUrl, expiresAt }                                      │
 (2) redirect ผู้สมัคร → verifyUrl  (มีแค่ ?sid= ไม่มี PII)                          │
 (3) broker: stub page  หรือ  302 → ThaID authorize                                │
 (4) ThaID callback → GET /verify/callback → เทียบ claims กับ matchFields           │
-(5) broker S2S POST {VERIFY_LARAVEL_INGEST_URL}  { sid, mode, ...flags, hash }  ─►│ api: upsert register_verification
+(5) broker S2S POST {VERIFY_LARAVEL_INGEST_URL}  { sid, mode, ...flags, hash, consent } ─►│ api: upsert register_verification
 (6) 302 ผู้สมัคร → {VERIFY_DONE_REDIRECT}?ref=<applicationRef>&kyc=verified|failed  │
 (7) broker: ลบ match fields, ปิด session (status=consumed)                         ┘
 ```
@@ -56,8 +62,8 @@ broker ไม่เก็บ `profile` ต่อในทั้งสองโ�
 ### prefill mode (verify-first / "แบบ B" — ยังไม่มีใบสมัคร)
 
 ```
-(0) SPA  POST /api/verify/start   { mode:'prefill', matchFields:{ citizenId } }   │ api
-(1) api  S2S POST {broker}/api/verify/session  ─────────────────────────────────►│ broker (seed = citizenId เท่านั้น)
+(0) SPA  POST /api/verify/start  { mode:'prefill', matchFields:{ citizenId }, consent:{version} }│ api
+(1) api  S2S POST {broker}/api/verify/session  (+ consent.acceptedAt = server time) ─────────►│ broker (seed = citizenId เท่านั้น)
 (2)-(4) เหมือนบน — ThaID คืน VerifiedProfile ที่ยืนยันแล้ว (authoritative)          │
 (5) broker S2S POST {VERIFY_LARAVEL_INGEST_URL}  { sid, mode:'prefill',           │ api: upsert register_verification
         ...flags, hash, profile }  ────────────────────────────────────────────►│    + เข้ารหัส profile → verify_prefill_cache (TTL)
@@ -199,6 +205,7 @@ app.use(createVerifyApiRoutes({ prisma, env: process.env }));
   "isThaiNational": true, "nameMatch": true, "birthDateMatch": true, "addressMatch": true,
   "overallPass": true, "ial": "2.3", "provider": "thaid-oidc",
   "ndidRequestId": "...", "failureReason": null, "verifiedAt": "2026-09-02T10:00:00.000Z",
+  "consentVersion": "2026-09-v1", "consentAt": "2026-09-02T09:59:00.000Z",
   "profile": { "citizenId": "...", "firstNameTh": "...", "lastNameTh": "...",
                "birthDate": "1990-05-20", "isThaiNational": true,
                "address": { ... }, "geocode": { "provinceCode": "..", ... } }
@@ -220,14 +227,19 @@ api: เช็ค signature → `upsert` `register_verification` by `sid` (last-
 **(3) `POST /api/verify/start`** — SPA กดปุ่ม "ยืนยันตัวตนด้วย ThaID"
 
 ```json
-// prefill (verify-first): { "mode": "prefill", "matchFields": { "citizenId": "1234567890123" } }
-// match  (verify-after) : { "mode": "match", "applicationRef": "123", "matchFields": { ...ครบชุด } }
+// prefill (verify-first): { "mode": "prefill", "matchFields": { "citizenId": "1234567890123" }, "consent": { "version": "2026-09-v1" } }
+// match  (verify-after) : { "mode": "match", "applicationRef": "123", "matchFields": { ...ครบชุด }, "consent": { "version": "2026-09-v1" } }
 → 201 { "sid": "...", "verifyUrl": "https://thaikaomai.or.th/verify?sid=...", "expiresAt": 1712345678000 }
 ```
 
 api: S2S-sign → `POST {VERIFY_PUBLIC_BASE}/api/verify/session` → คืน `verifyUrl` ให้ SPA
 (`window.location = verifyUrl`) — **ADAPT:** ครอบ handler นี้ด้วย captcha / rate-limit /
 เช็ค origin ของ api ตามระบบเดิม
+
+**consent (PDPA):** SPA ส่งแค่ `consent.version` — api set `acceptedAt` เป็นเวลา server เอง
+(ไม่เชื่อ client) แล้วส่งต่อ broker → broker เก็บใน `verify_sessions` → echo กลับใน ingest
+→ api ลง `register_verification.consent_at` / `consent_version`
+**ADAPT:** ปฏิเสธคำขอถ้าไม่มี consent / version ไม่อยู่ในรายการที่ใช้จริง
 
 ### หลังบ้าน (ส่วนที่ 2)
 
@@ -304,15 +316,21 @@ export function useThaidPrefill(form: { setValues: (v: Record<string, unknown>) 
   return state;
 }
 
+import { DEFAULT_CONSENT_VERSION } from './verify-prefill-client';
+
 export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; apiBase?: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const canStart = isValidThaiCitizenId(citizenId);
+  const [consented, setConsented] = useState(false);
+  const canStart = isValidThaiCitizenId(citizenId) && consented;
 
   async function onClick() {
     setBusy(true); setErr('');
     try {
-      const { verifyUrl } = await startThaidVerify({ citizenId, apiBase });
+      const { verifyUrl } = await startThaidVerify({
+        citizenId, apiBase,
+        consent: { version: DEFAULT_CONSENT_VERSION }, // acceptedAt ตั้งฝั่ง server
+      });
       window.location.assign(verifyUrl); // ออกจาก SPA ไป broker/ThaID
     } catch (e) {
       setBusy(false);
@@ -322,6 +340,11 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
 
   return (
     <div>
+      <label>
+        <input type="checkbox" checked={consented} onChange={e => setConsented(e.target.checked)} />
+        {' '}ข้าพเจ้ายินยอมให้พรรคฯ ตรวจสอบและประมวลผลข้อมูลส่วนบุคคล (รวมข้อมูลอ่อนไหว)
+        กับกรมการปกครองเพื่อยืนยันตัวตน ตามนโยบายความเป็นส่วนตัว {/* ADAPT: ลิงก์ข้อความ consent จริง */}
+      </label>
       <button type="button" onClick={onClick} disabled={!canStart || busy}>
         {busy ? 'กำลังพาไปยืนยัน…' : 'ยืนยันตัวตนด้วย ThaID (ช่วยให้ตรวจสอบเร็วขึ้น)'}
       </button>
@@ -378,12 +401,11 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
 4. token endpoint auth: `basic` หรือ `post` → `THAID_TOKEN_AUTH`
 5. security assessment / pen-test ตามที่ DOPA/DGA กำหนด
 
-## ค้างไว้ก่อน go-live (ดูบทสนทนาออกแบบ)
+## ค้างไว้ก่อน go-live
 
-- DPIA + หน้าขอความยินยอม PDPA (สมาชิกพรรค = ข้อมูลอ่อนไหว ม.26) + retention policy
-  — เก็บ `consent_at` / `consent_version` ลง `register_verification` ตอนผู้ใช้กดยินยอมก่อนเริ่ม verify
-  (ตอนนี้ ก้อน B ปล่อยเป็น `NULL` เพราะ broker ไม่ได้ส่งมาใน ingest payload)
-- `VERIFY_FIELD_KEY` ควรมาจาก KMS/secret manager ไม่ใช่ไฟล์ `.env` ธรรมดา
-- ลงทะเบียน `THAID_REDIRECT_URI` (โดเมน apex สุดท้าย) กับ DOPA ตอนยื่น RP
-- ยืนยันชื่อ claim จริงใน `mapThaidClaims()` + param ที่ DOPA ต้องการใน `start()` (ดูหัวข้อ "ก้อน D")
-- security assessment / pen-test ตามที่ DOPA/DGA กำหนดตอน onboard RP
+โค้ด broker + api routes + SPA client + OIDC driver + consent plumbing (ก้อน A–E) เสร็จแล้ว
+ที่เหลือ = งาน DOPA / infra / PDPA — checklist เต็มอยู่ที่ **[`GO-LIVE.md`](./GO-LIVE.md)**
+
+หัวข้อหลัก: RP onboarding + ยืนยันชื่อ claim ใน `mapThaidClaims()` · `VERIFY_FIELD_KEY` จาก KMS ·
+ลงทะเบียน `THAID_REDIRECT_URI` กับ DOPA · เขียนข้อความ consent จริง + api บังคับ consent ·
+DPIA + retention · pen-test
