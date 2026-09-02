@@ -1,6 +1,6 @@
 // ── ThaID KYC broker — IdentityVerifier contract + drivers ────────────────────
 import type { VerifyConfig } from './config';
-import type { MatchFields, KycResult } from './types';
+import type { MatchFields, KycResult, VerifyMode } from './types';
 import { computeFlags, citizenIdMatches, isOverallPass, type VerifiedProfile } from './matcher';
 import { genPkce, randomToken } from './crypto';
 
@@ -15,14 +15,25 @@ export interface StartOutcome {
 
 export interface CallbackInput {
   query: Record<string, string | undefined>;
+  mode: VerifyMode;
+  /**
+   * mode='match'  : ข้อมูลผู้สมัครครบชุด (เอาไว้เทียบ)
+   * mode='prefill': seed อย่างน้อยมี citizenId (name/birthDate อาจว่าง) — ThaID เป็นคนคืนของจริง
+   */
   applicant: MatchFields;
   session: { sid: string; oidcState: string | null; oidcNonce: string | null; pkceVerifier: string | null };
+}
+
+export interface CallbackResult {
+  result: KycResult;
+  /** identity ที่ยืนยันแล้วจาก IdP — ใช้ตอน mode='prefill' ส่งให้ api เติมฟอร์ม */
+  profile: VerifiedProfile;
 }
 
 export interface IdentityVerifier {
   readonly name: 'stub' | 'thaid-oidc';
   start(sid: string, cfg: VerifyConfig): StartOutcome;
-  handleCallback(input: CallbackInput, cfg: VerifyConfig): Promise<KycResult>;
+  handleCallback(input: CallbackInput, cfg: VerifyConfig): Promise<CallbackResult>;
 }
 
 // ── STUB driver — ใช้ตอนนี้ (ก่อนได้ RP credentials) ──────────────────────────
@@ -43,28 +54,48 @@ class StubVerifier implements IdentityVerifier {
     };
   }
 
-  async handleCallback(input: CallbackInput, cfg: VerifyConfig): Promise<KycResult> {
+  async handleCallback(input: CallbackInput, cfg: VerifyConfig): Promise<CallbackResult> {
     if (!cfg.stubAutoPass || input.query.stub !== '1') {
       throw new VerifierError('stub_no_idp', 'ยังไม่ได้เชื่อมต่อ ThaID จริง (driver=stub)');
     }
     const a = input.applicant;
+    // stub จำลอง "ของจริงจาก DOPA" = echo seed/ผู้สมัคร เติมช่องว่างด้วย placeholder
     const verified: VerifiedProfile = {
       citizenId: a.citizenId,
-      firstNameTh: a.firstNameTh,
+      firstNameTh: a.firstNameTh || 'ทดสอบ',
       middleNameTh: a.middleNameTh,
-      lastNameTh: a.lastNameTh,
-      birthDate: a.birthDate,
+      lastNameTh: a.lastNameTh || 'ระบบ',
+      birthDate: a.birthDate || '1990-01-01',
       isThaiNational: true,
       address: a.address,
     };
+
+    if (input.mode === 'prefill') {
+      // ไม่มีข้อมูลผู้สมัครให้เทียบ — identity คือแหล่งที่ยืนยันแล้วในตัวเอง
+      return {
+        profile: verified,
+        result: {
+          ok: verified.isThaiNational,
+          flags: { isThaiNational: true, nameMatch: true, birthDateMatch: true, addressMatch: true },
+          ial: cfg.thaid.requiredIal,
+          provider: 'stub',
+          ndidRequestId: `stub-${input.session.sid.slice(0, 12)}`,
+        },
+      };
+    }
+
     const flags = computeFlags(a, verified);
     const idOk = citizenIdMatches(a, verified);
     return {
-      ok: isOverallPass(flags, idOk),
-      flags,
-      ial: cfg.thaid.requiredIal,
-      provider: 'stub',
-      failureReason: idOk ? undefined : 'citizen_id_mismatch',
+      profile: verified,
+      result: {
+        ok: isOverallPass(flags, idOk),
+        flags,
+        ial: cfg.thaid.requiredIal,
+        provider: 'stub',
+        ndidRequestId: `stub-${input.session.sid.slice(0, 12)}`,
+        failureReason: idOk ? undefined : 'citizen_id_mismatch',
+      },
     };
   }
 }
@@ -91,7 +122,7 @@ class ThaidOidcVerifier implements IdentityVerifier {
     return { redirectUrl: url.toString(), oidc: { state, nonce, pkceVerifier: pkce.verifier } };
   }
 
-  async handleCallback(_input: CallbackInput, _cfg: VerifyConfig): Promise<KycResult> {
+  async handleCallback(_input: CallbackInput, _cfg: VerifyConfig): Promise<CallbackResult> {
     // TODO(go-live) ลำดับที่ต้องทำ:
     //  1. ตรวจ query.error → ถ้ามีแปลว่าผู้ใช้ยกเลิก/ปฏิเสธ → คืน ok:false failureReason='user_cancelled'
     //  2. ตรวจ query.state === session.oidcState (constant-time) — ไม่ตรง → throw csrf

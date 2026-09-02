@@ -1,10 +1,25 @@
 # ThaID KYC verification broker
 
-โมดูลยืนยันตัวตน (KYC) แยกออกจาก API หลัก — **"ยืนยันอย่างเดียว ไม่เก็บข้อมูลผู้สมัคร"**
+โมดูลยืนยันตัวตน (KYC) แยกออกจากระบบสมัคร — **"ยืนยันอย่างเดียว ไม่เก็บข้อมูลผู้สมัคร"**
 
-ระบบรับสมัครสมาชิกพรรค (Laravel, คนละ repo) ยังทำงานเหมือนเดิมทุกอย่าง โมดูลนี้เป็น
-ตัวช่วยที่ Laravel เรียกใช้เพื่อ (1) ยืนยันว่าผู้สมัครเป็นคนไทยจริง (2) ยืนยันว่า
+> **หมายเหตุ (แก้จากที่เข้าใจผิดตอนแรก):** ระบบสมัครสมาชิกพรรค **ไม่ใช่ Laravel** —
+> เป็น **Express + Prisma + MySQL** (`/opt/thaikaomai/api`) + SPA React/Vite/Mantine
+> (`/opt/thaikaomai/web`). "Laravel" ในเอกสารนี้ = อ่านว่า "ฝั่ง api". โครงสร้าง
+> ข้อมูล: `register_log` = ใบสมัครดิบ, `register` = สมาชิกที่อนุมัติแล้ว
+
+โมดูลนี้ให้ api เรียกใช้เพื่อ (1) ยืนยันว่าผู้สมัครเป็นคนไทยจริง (2) ยืนยันว่า
 ชื่อ-สกุล / เลขบัตร 13 หลัก / วันเกิด / ที่อยู่ทะเบียนบ้าน ตรงกับฐานกรมการปกครอง
+
+## โหมด (mode)
+
+`POST /api/verify/session` รับ `mode`:
+
+| mode | ใช้เมื่อ | broker ทำ | ผลลัพธ์ |
+|---|---|---|---|
+| `match` (default) | verify-after — มีใบสมัครแล้ว ส่ง `matchFields` ครบชุดมาเทียบ | เทียบ claim ThaID กับ matchFields | flag `name/birthDate/address match` |
+| `prefill` | verify-first ("แบบ B") — ยังไม่มีใบสมัคร ส่งแค่ seed `{ citizenId }` (+ชื่อ/วันเกิด optional) | ThaID คืน identity ที่ยืนยันแล้ว | `profile: VerifiedProfile` ส่งให้ api เก็บ transient (เข้ารหัส+TTL+single-use) ให้ SPA ดึงไปเติมฟอร์ม+ล็อก แล้ว api ลบทิ้ง |
+
+broker ไม่เก็บ `profile` ต่อในทั้งสองโหมด — `verify_sessions` ถูกล้างตอน consume เหมือนเดิม
 
 ---
 

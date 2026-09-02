@@ -6,12 +6,13 @@
 // Dockerfile ต้องเป็น node:22-alpine ขึ้นไป (ดู README)
 import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
-import type { VerifyStatus, VerifySessionRow } from './types';
+import type { VerifyStatus, VerifySessionRow, VerifyMode } from './types';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS verify_sessions (
   sid              TEXT PRIMARY KEY,
   application_ref  TEXT NOT NULL,
+  mode             TEXT NOT NULL DEFAULT 'match',
   status           TEXT NOT NULL,
   match_fields_enc TEXT,
   oidc_state       TEXT,
@@ -30,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_sessions_expires ON verify_sessions(expire
 export interface CreateSessionInput {
   sid: string;
   applicationRef: string;
+  mode: VerifyMode;
   matchFieldsEnc: string;
   expiresAt: number;
 }
@@ -47,10 +49,10 @@ export class VerifyStore {
   create(input: CreateSessionInput): void {
     this.db
       .prepare(
-        `INSERT INTO verify_sessions (sid, application_ref, status, match_fields_enc, created_at, expires_at)
-         VALUES (?, ?, 'created', ?, ?, ?)`,
+        `INSERT INTO verify_sessions (sid, application_ref, mode, status, match_fields_enc, created_at, expires_at)
+         VALUES (?, ?, ?, 'created', ?, ?, ?)`,
       )
-      .run(input.sid, input.applicationRef, input.matchFieldsEnc, Date.now(), input.expiresAt);
+      .run(input.sid, input.applicationRef, input.mode, input.matchFieldsEnc, Date.now(), input.expiresAt);
   }
 
   get(sid: string): VerifySessionRow | undefined {

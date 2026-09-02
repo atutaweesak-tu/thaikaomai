@@ -1,12 +1,14 @@
 // ── ThaID KYC broker — push ผล KYC กลับระบบสมัคร (Laravel) ────────────────────
 import type { VerifyConfig } from './config';
-import type { KycResult } from './types';
+import type { KycResult, VerifyMode } from './types';
+import type { VerifiedProfile } from './matcher';
 import { pepperedPidHash } from './crypto';
 import { signOutgoingS2S } from './s2s';
 
 export interface IngestPayload {
   sid: string;
   applicationRef: string;
+  mode: VerifyMode;
   citizenIdHash: string;      // HMAC(pid, VERIFY_PID_PEPPER) — ไม่ส่ง pid เต็ม
   isThaiNational: boolean;
   nameMatch: boolean;
@@ -15,20 +17,29 @@ export interface IngestPayload {
   overallPass: boolean;
   ial: string | null;
   provider: string;
+  ndidRequestId: string | null;
   failureReason: string | null;
   verifiedAt: string;         // ISO
+  /**
+   * เฉพาะ mode='prefill': identity ที่ยืนยันแล้ว ส่งให้ api เก็บ transient (เข้ารหัส + TTL +
+   * single-use) เพื่อให้ SPA ดึงไปเติมฟอร์ม แล้ว api ลบทิ้ง — broker ไม่เก็บต่อ
+   */
+  profile: VerifiedProfile | null;
 }
 
 export function buildIngestPayload(
   sid: string,
   applicationRef: string,
+  mode: VerifyMode,
   citizenId: string,
   result: KycResult,
   cfg: VerifyConfig,
+  profile: VerifiedProfile | null,
 ): IngestPayload {
   return {
     sid,
     applicationRef,
+    mode,
     citizenIdHash: cfg.pidPepper ? pepperedPidHash(citizenId.replace(/\D/g, ''), cfg.pidPepper) : '',
     isThaiNational: result.flags.isThaiNational,
     nameMatch: result.flags.nameMatch,
@@ -37,8 +48,10 @@ export function buildIngestPayload(
     overallPass: result.ok,
     ial: result.ial ?? null,
     provider: result.provider,
+    ndidRequestId: result.ndidRequestId ?? null,
     failureReason: result.failureReason ?? null,
     verifiedAt: new Date().toISOString(),
+    profile: mode === 'prefill' ? profile : null,
   };
 }
 

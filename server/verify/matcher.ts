@@ -12,6 +12,15 @@ export interface VerifiedProfile {
   birthDate: string; // YYYY-MM-DD (ค.ศ.)
   isThaiNational: boolean;
   address?: RegisteredAddress;
+  /**
+   * รหัสภูมิศาสตร์มาตรฐาน (TIS-1099) ถ้า IdP ส่งมาด้วย — ถ้ามี ฝั่ง api ข้ามขั้น
+   * resolve ชื่อ→id ได้เลย (ดู server/verify/README.md ข้อ "resolve-address")
+   */
+  geocode?: {
+    provinceCode?: string;    // 2 หลัก
+    districtCode?: string;     // 4 หลัก
+    subDistrictCode?: string;  // 6 หลัก
+  };
 }
 
 const norm = (s?: string): string =>

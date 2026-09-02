@@ -13,7 +13,8 @@ import { makeVerifier, VerifierError } from './identityVerifier';
 import { verifyIncomingS2S, clientIp } from './s2s';
 import { buildIngestPayload, pushResultToLaravel } from './laravelClient';
 import { encryptJson, decryptJson, randomToken } from './crypto';
-import type { MatchFields, KycResult } from './types';
+import type { MatchFields, VerifyMode } from './types';
+import type { CallbackResult } from './identityVerifier';
 
 // ── utils ────────────────────────────────────────────────────────────────────
 function readRawBody(req: IncomingMessage, limitBytes = 16 * 1024): Promise<string> {
@@ -111,6 +112,26 @@ function parseMatchFields(input: unknown): MatchFields | null {
   };
 }
 
+/**
+ * mode='prefill' — ยังไม่มีข้อมูลผู้สมัคร ต้องการแค่ citizenId 13 หลักเพื่อเริ่ม ThaID
+ * (name/birthDate ถ้าส่งมาด้วยจะใช้เป็น echo ของ stub เท่านั้น)
+ */
+function parseSeedFields(input: unknown): MatchFields | null {
+  if (!input || typeof input !== 'object') return null;
+  const o = input as Record<string, unknown>;
+  const s = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+  const citizenId = (s(o.citizenId) || '').replace(/\D/g, '');
+  if (citizenId.length !== 13) return null;
+  const birthDate = s(o.birthDate)?.trim() || '';
+  return {
+    citizenId,
+    firstNameTh: s(o.firstNameTh)?.trim() || '',
+    middleNameTh: s(o.middleNameTh)?.trim() || undefined,
+    lastNameTh: s(o.lastNameTh)?.trim() || '',
+    birthDate: /^\d{4}-\d{2}-\d{2}$/.test(birthDate) ? birthDate : '',
+  };
+}
+
 // ── router factory ───────────────────────────────────────────────────────────
 export function createVerifyRouter(env: Record<string, string>, dataDir: string) {
   const router = express.Router();
@@ -172,9 +193,12 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
     if (!applicationRef || applicationRef.length > 128) {
       return res.status(400).type('json').send('{"error":"bad_application_ref"}');
     }
-    const fields = parseMatchFields(parsed.matchFields);
+    const mode: VerifyMode = parsed.mode === 'prefill' ? 'prefill' : 'match';
+    const fields = mode === 'prefill' ? parseSeedFields(parsed.matchFields) : parseMatchFields(parsed.matchFields);
     if (!fields) {
-      return res.status(400).type('json').send('{"error":"bad_match_fields"}');
+      return res.status(400).type('json').send(
+        JSON.stringify({ error: mode === 'prefill' ? 'bad_seed_fields' : 'bad_match_fields' }),
+      );
     }
     if (!cfg.fieldKey) {
       console.error('[verify] VERIFY_FIELD_KEY ไม่ได้ตั้ง — ปฏิเสธการเปิด session');
@@ -190,6 +214,7 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
     store.create({
       sid,
       applicationRef,
+      mode,
       matchFieldsEnc: encryptJson(fields, cfg.fieldKey),
       expiresAt,
     });
@@ -253,18 +278,20 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
       return finishRedirect(res, s.application_ref, kyc);
     }
 
-    let result: KycResult;
+    let cb: CallbackResult;
     try {
       const applicant = decryptJson<MatchFields>(s.match_fields_enc || '', cfg.fieldKey!);
-      result = await verifier.handleCallback(
-        { query: q, applicant, session: { sid: s.sid, oidcState: s.oidc_state, oidcNonce: s.oidc_nonce, pkceVerifier: s.pkce_verifier } },
+      cb = await verifier.handleCallback(
+        { query: q, mode: s.mode, applicant, session: { sid: s.sid, oidcState: s.oidc_state, oidcNonce: s.oidc_nonce, pkceVerifier: s.pkce_verifier } },
         cfg,
       );
-      store.setResult(s.sid, result.ok ? 'verified' : 'failed', JSON.stringify(result.flags));
+      store.setResult(s.sid, cb.result.ok ? 'verified' : 'failed', JSON.stringify(cb.result.flags));
 
-      const payload = buildIngestPayload(s.sid, s.application_ref, applicant.citizenId, result, cfg);
+      const payload = buildIngestPayload(
+        s.sid, s.application_ref, s.mode, cb.profile.citizenId, cb.result, cfg, cb.profile,
+      );
       const push = await pushResultToLaravel(payload, cfg);
-      if (!push.ok) console.error(`[verify] push ไป Laravel ไม่สำเร็จ sid=${s.sid}: ${push.error}`);
+      if (!push.ok) console.error(`[verify] push ไป api ไม่สำเร็จ sid=${s.sid}: ${push.error}`);
     } catch (e) {
       const msg = e instanceof VerifierError ? `${e.code}: ${e.message}` : (e as Error).message;
       console.error('[verify] callback error:', msg);
@@ -274,7 +301,7 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
     }
 
     store.finalizeConsumed(s.sid);
-    return finishRedirect(res, s.application_ref, result.ok ? 'verified' : 'failed');
+    return finishRedirect(res, s.application_ref, cb.result.ok ? 'verified' : 'failed');
   });
 
   function finishRedirect(res: Response, ref: string, kyc: 'verified' | 'failed' | 'pending') {

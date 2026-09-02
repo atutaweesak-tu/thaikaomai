@@ -42,7 +42,17 @@ export interface KycResult {
   ial?: string;                 // Identity Assurance Level ที่ได้จาก IdP
   provider: 'stub' | 'thaid-oidc';
   failureReason?: string;
+  /** reference ธุรกรรม NDID/ThaID ไว้สอบทาน/ข้อพิพาท (null เมื่อ driver=stub) */
+  ndidRequestId?: string;
 }
+
+/**
+ * โหมดของ verify session:
+ *  - 'match'   : ระบบสมัครส่ง matchFields มาให้ broker เทียบกับผล ThaID → คืน flag (verify-after)
+ *  - 'prefill' : ยังไม่มีข้อมูลผู้สมัคร — ThaID คืน identity ที่ยืนยันแล้วให้เอาไปเติมฟอร์ม + ล็อก
+ *               (verify-first / "แบบ B") broker ยังไม่เก็บ profile — push ให้ api ทันทีแล้วลบ
+ */
+export type VerifyMode = 'match' | 'prefill';
 
 export type VerifyStatus =
   | 'created'    // Laravel เปิด session แล้ว ผู้สมัครยังไม่เริ่ม
@@ -56,6 +66,7 @@ export type VerifyStatus =
 export interface VerifySessionRow {
   sid: string;
   application_ref: string;
+  mode: VerifyMode;
   status: VerifyStatus;
   match_fields_enc: string | null;
   oidc_state: string | null;
