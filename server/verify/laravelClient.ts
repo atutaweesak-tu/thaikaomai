@@ -1,6 +1,6 @@
 // ── ThaID KYC broker — push ผล KYC กลับระบบสมัคร (Laravel) ────────────────────
 import type { VerifyConfig } from './config';
-import type { KycResult, VerifyMode } from './types';
+import type { KycResult, VerifyMode, ConsentRecord } from './types';
 import type { VerifiedProfile } from './matcher';
 import { pepperedPidHash } from './crypto';
 import { signOutgoingS2S } from './s2s';
@@ -20,6 +20,9 @@ export interface IngestPayload {
   ndidRequestId: string | null;
   failureReason: string | null;
   verifiedAt: string;         // ISO
+  /** ความยินยอม PDPA ที่ผู้สมัครกดก่อนเริ่ม verify (จาก verify_sessions) — null ถ้าไม่ได้ส่งมา */
+  consentVersion: string | null;
+  consentAt: string | null;   // ISO
   /**
    * เฉพาะ mode='prefill': identity ที่ยืนยันแล้ว ส่งให้ api เก็บ transient (เข้ารหัส + TTL +
    * single-use) เพื่อให้ SPA ดึงไปเติมฟอร์ม แล้ว api ลบทิ้ง — broker ไม่เก็บต่อ
@@ -35,6 +38,7 @@ export function buildIngestPayload(
   result: KycResult,
   cfg: VerifyConfig,
   profile: VerifiedProfile | null,
+  consent: Partial<ConsentRecord> | null,
 ): IngestPayload {
   return {
     sid,
@@ -51,6 +55,8 @@ export function buildIngestPayload(
     ndidRequestId: result.ndidRequestId ?? null,
     failureReason: result.failureReason ?? null,
     verifiedAt: new Date().toISOString(),
+    consentVersion: consent?.version ?? null,
+    consentAt: consent?.acceptedAt ?? null,
     profile: mode === 'prefill' ? profile : null,
   };
 }

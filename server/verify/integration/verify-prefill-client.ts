@@ -86,6 +86,13 @@ function joinUrl(base: string, path: string): string {
 }
 
 // ── (1) เริ่มยืนยัน ─────────────────────────────────────────────────────────
+
+/**
+ * เวอร์ชันข้อความขอความยินยอม PDPA ปัจจุบัน — bump เมื่อแก้ข้อความ consent
+ * (สมาชิกพรรค = ข้อมูลอ่อนไหว ม.26) api จะบันทึกคู่กับ timestamp ฝั่ง server
+ */
+export const DEFAULT_CONSENT_VERSION = '2026-09-v1';
+
 export interface StartInput {
   citizenId: string;
   /** default 'prefill' (verify-first). 'match' = มี register_log แล้ว ต้องส่ง applicationRef + matchFields ครบ */
@@ -93,6 +100,8 @@ export interface StartInput {
   applicationRef?: string;
   /** เพิ่ม field อื่นเข้า matchFields (mode='match') */
   matchFields?: Record<string, unknown>;
+  /** ความยินยอม PDPA ที่ผู้ใช้กด — ต้องส่งเสมอถ้า api บังคับ consent (acceptedAt ตั้งฝั่ง server) */
+  consent?: { version: string };
   /** base ของ api — default '' (same origin) */
   apiBase?: string;
 }
@@ -114,6 +123,7 @@ export async function startThaidVerify(input: StartInput): Promise<StartResult> 
     mode,
     applicationRef: input.applicationRef,
     matchFields: { citizenId, ...(input.matchFields || {}) },
+    consent: input.consent?.version ? { version: input.consent.version } : undefined,
   });
 
   let res: Response;

@@ -22,11 +22,19 @@ CREATE TABLE IF NOT EXISTS verify_sessions (
   attempts         INTEGER NOT NULL DEFAULT 0,
   created_at       INTEGER NOT NULL,
   expires_at       INTEGER NOT NULL,
-  consumed_at      INTEGER
+  consumed_at      INTEGER,
+  consent_version  TEXT,
+  consent_at       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_verify_sessions_state   ON verify_sessions(oidc_state);
 CREATE INDEX IF NOT EXISTS idx_verify_sessions_expires ON verify_sessions(expires_at);
 `;
+
+// คอลัมน์ที่เพิ่มภายหลัง — ALTER แบบ idempotent เผื่อ DB เดิม (staging) ที่สร้างก่อนหน้า
+const ADD_COLUMNS: Record<string, string> = {
+  consent_version: 'TEXT',
+  consent_at: 'TEXT',
+};
 
 export interface CreateSessionInput {
   sid: string;
@@ -34,6 +42,8 @@ export interface CreateSessionInput {
   mode: VerifyMode;
   matchFieldsEnc: string;
   expiresAt: number;
+  consentVersion?: string | null;
+  consentAt?: string | null; // ISO 8601
 }
 
 export class VerifyStore {
@@ -44,15 +54,31 @@ export class VerifyStore {
     this.db.exec('PRAGMA journal_mode = WAL;');
     this.db.exec('PRAGMA busy_timeout = 4000;');
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /** เพิ่มคอลัมน์ที่ยังไม่มี (DB ที่สร้างก่อนเวอร์ชันนี้) — ปลอดภัยรันซ้ำ */
+  private migrate(): void {
+    const existing = new Set(
+      (this.db.prepare(`PRAGMA table_info(verify_sessions)`).all() as { name: string }[]).map(r => r.name),
+    );
+    for (const [col, type] of Object.entries(ADD_COLUMNS)) {
+      if (!existing.has(col)) this.db.exec(`ALTER TABLE verify_sessions ADD COLUMN ${col} ${type}`);
+    }
   }
 
   create(input: CreateSessionInput): void {
     this.db
       .prepare(
-        `INSERT INTO verify_sessions (sid, application_ref, mode, status, match_fields_enc, created_at, expires_at)
-         VALUES (?, ?, ?, 'created', ?, ?, ?)`,
+        `INSERT INTO verify_sessions
+           (sid, application_ref, mode, status, match_fields_enc, created_at, expires_at, consent_version, consent_at)
+         VALUES (?, ?, ?, 'created', ?, ?, ?, ?, ?)`,
       )
-      .run(input.sid, input.applicationRef, input.mode, input.matchFieldsEnc, Date.now(), input.expiresAt);
+      .run(
+        input.sid, input.applicationRef, input.mode, input.matchFieldsEnc,
+        Date.now(), input.expiresAt,
+        input.consentVersion ?? null, input.consentAt ?? null,
+      );
   }
 
   get(sid: string): VerifySessionRow | undefined {

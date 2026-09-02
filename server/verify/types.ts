@@ -54,6 +54,16 @@ export interface KycResult {
  */
 export type VerifyMode = 'match' | 'prefill';
 
+/**
+ * ความยินยอม PDPA ที่ผู้สมัครกดก่อนเริ่มยืนยันตัวตน (สมาชิกพรรค = ข้อมูลอ่อนไหว ม.26)
+ * SPA ส่ง version มา — api ควร override acceptedAt เป็นเวลา server แล้วส่งต่อให้ broker
+ * broker เก็บใน verify_sessions แล้ว echo กลับใน ingest → api ลง register_verification
+ */
+export interface ConsentRecord {
+  version: string;    // เวอร์ชันข้อความขอความยินยอม เช่น "2026-09-v1" (<=16 ตัว)
+  acceptedAt: string; // ISO 8601 — เวลาที่กดยินยอม
+}
+
 export type VerifyStatus =
   | 'created'    // Laravel เปิด session แล้ว ผู้สมัครยังไม่เริ่ม
   | 'pending'    // ผู้สมัครเริ่มขั้นตอนแล้ว (ถูก redirect ไป IdP / รอ stub)
@@ -77,4 +87,6 @@ export interface VerifySessionRow {
   created_at: number;
   expires_at: number;
   consumed_at: number | null;
+  consent_version: string | null;
+  consent_at: string | null; // ISO 8601
 }

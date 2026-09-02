@@ -47,6 +47,8 @@ interface IngestPayload {
   ndidRequestId: string | null;
   failureReason: string | null;
   verifiedAt: string; // ISO
+  consentVersion: string | null; // ความยินยอม PDPA (จาก verify_sessions ของ broker)
+  consentAt: string | null;      // ISO
   profile: VerifiedProfile | null; // เฉพาะ mode='prefill'
 }
 
@@ -260,10 +262,13 @@ export function createVerifyApiRoutes(deps: VerifyApiDeps): Router {
         overall_pass: b(p.overallPass),
         failure_reason: str(p.failureReason, 64),
         id_card_hash: /^[0-9a-f]{64}$/i.test(p.citizenIdHash || '') ? p.citizenIdHash : null,
-        // consent_* / requester_ip: broker ไม่ได้ส่งมาใน ingest payload
-        // TODO(go-live): เก็บตอน SPA กดยินยอม PDPA ก่อนเริ่ม verify (ดู README go-live)
-        consent_at: null,
-        consent_version: null,
+        // consent มาจาก SPA (กดก่อนเริ่ม verify) → broker session → ingest payload
+        consent_version: str(p.consentVersion, 16),
+        consent_at: (() => {
+          const d = new Date(String(p.consentAt || ''));
+          return p.consentAt && !Number.isNaN(d.getTime()) ? d : null;
+        })(),
+        // requester_ip: broker ไม่ได้ส่งมา — เก็บฝั่ง api ตอน /start ได้ถ้าต้องการ audit ละเอียด
         requester_ip: null,
         verified_at: verifiedAt,
       };
@@ -374,7 +379,13 @@ export function createVerifyApiRoutes(deps: VerifyApiDeps): Router {
       return json(res, 400, { error: 'bad_citizen_id' });
     }
 
-    const brokerBody = JSON.stringify({ applicationRef, mode, matchFields: seed });
+    // ความยินยอม PDPA: SPA ส่ง version มา — api set acceptedAt เป็นเวลา server เอง (ไม่เชื่อ client)
+    // ADAPT: validate version กับรายการเวอร์ชันข้อความ consent ที่ใช้จริง; ปฏิเสธถ้าไม่ยินยอม
+    const consentIn = (body.consent && typeof body.consent === 'object' ? body.consent : {}) as Record<string, unknown>;
+    const consentVersion = typeof consentIn.version === 'string' ? consentIn.version.trim().slice(0, 16) : '';
+    const consent = consentVersion ? { version: consentVersion, acceptedAt: new Date().toISOString() } : undefined;
+
+    const brokerBody = JSON.stringify({ applicationRef, mode, matchFields: seed, consent });
     const headers = signOutgoingS2S(brokerBody, cfg.s2s.secret);
     try {
       const ac = new AbortController();

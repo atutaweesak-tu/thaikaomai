@@ -112,6 +112,18 @@ function parseMatchFields(input: unknown): MatchFields | null {
   };
 }
 
+/** ความยินยอม PDPA — { version: <=16 ตัว, acceptedAt: ISO } หรือ null */
+function parseConsent(input: unknown): { version: string; acceptedAt: string } | null {
+  if (!input || typeof input !== 'object') return null;
+  const o = input as Record<string, unknown>;
+  const version = typeof o.version === 'string' ? o.version.trim().slice(0, 16) : '';
+  if (!version) return null;
+  const rawAt = typeof o.acceptedAt === 'string' ? o.acceptedAt.trim() : '';
+  const d = new Date(rawAt);
+  const acceptedAt = rawAt && !Number.isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+  return { version, acceptedAt };
+}
+
 /**
  * mode='prefill' — ยังไม่มีข้อมูลผู้สมัคร ต้องการแค่ citizenId 13 หลักเพื่อเริ่ม ThaID
  * (name/birthDate ถ้าส่งมาด้วยจะใช้เป็น echo ของ stub เท่านั้น)
@@ -205,6 +217,8 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
       return res.status(503).type('json').send('{"error":"broker_not_configured"}');
     }
 
+    const consent = parseConsent(parsed.consent);
+
     const sid = randomToken(24);
     const ttl = Math.min(
       cfg.sessionTtlSeconds,
@@ -217,6 +231,8 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
       mode,
       matchFieldsEnc: encryptJson(fields, cfg.fieldKey),
       expiresAt,
+      consentVersion: consent?.version ?? null,
+      consentAt: consent?.acceptedAt ?? null,
     });
 
     const base = cfg.publicBase || `${req.protocol}://${req.get('host')}`;
@@ -289,6 +305,7 @@ export function createVerifyRouter(env: Record<string, string>, dataDir: string)
 
       const payload = buildIngestPayload(
         s.sid, s.application_ref, s.mode, cb.profile.citizenId, cb.result, cfg, cb.profile,
+        s.consent_version ? { version: s.consent_version, acceptedAt: s.consent_at ?? undefined } : null,
       );
       const push = await pushResultToLaravel(payload, cfg);
       if (!push.ok) console.error(`[verify] push ไป api ไม่สำเร็จ sid=${s.sid}: ${push.error}`);
