@@ -38,7 +38,7 @@ export default function NewsSection() {
   const visibleEvents = upcomingEvents(events);
 
   return (
-    <section className="py-24 bg-white/[0.02]">
+    <section className="py-24 bg-[var(--surface-section)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           {/* News Feed */}
@@ -85,14 +85,14 @@ export default function NewsSection() {
                       <span className="bg-brand-neon/10 text-brand-neon text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest">
                         {item.category}
                       </span>
-                      <span className="text-white/40 text-xs font-medium">
+                      <span className="text-faint text-xs font-medium">
                         {item.date}
                       </span>
                     </div>
                     <h3 className="text-2xl font-black tracking-tighter mb-4 group-hover:text-brand-neon transition-colors">
                       {item.title}
                     </h3>
-                    <p className="text-white/50 text-sm leading-relaxed mb-6">
+                    <p className="text-muted text-sm leading-relaxed mb-6">
                       {item.summary}
                     </p>
                   </motion.div>
@@ -112,7 +112,7 @@ export default function NewsSection() {
               {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap เหมือนการ์ดข่าวด้านบน — ห่อการ์ดแต่ละ event ด้วย
                   กรอบบางๆ ให้เห็นขอบเขตตอนเลื่อน ส่วนจอ md ขึ้นไปกลับไปเป็น list แนวตั้งแบบเดิม */}
               {visibleEvents.length === 0 ? (
-                <p className="text-white/40 text-sm leading-relaxed py-6">
+                <p className="text-faint text-sm leading-relaxed py-6">
                   ยังไม่มีกิจกรรมที่กำหนดการในขณะนี้ — ติดตามประกาศจากพรรคเร็วๆ นี้
                 </p>
               ) : (
@@ -139,7 +139,7 @@ export default function NewsSection() {
                             <h4 className="font-bold text-lg mb-3 group-hover:text-brand-neon transition-colors">
                               {event.title}
                             </h4>
-                            <div className="space-y-2 text-sm text-white/40">
+                            <div className="space-y-2 text-sm text-faint">
                               <div className="flex items-center gap-2">
                                 <MapPin size={14} className="text-brand-neon" />
                                 <span>{event.location}</span>

@@ -130,6 +130,15 @@ export interface PopupSettings {
   endDate?: string;
 }
 
+/** ธีม/การแสดงผล — enum ล้วน กัน combination ที่อ่านไม่ออก; ไม่ตั้งค่า = หน้าตา default */
+export interface ThemeSettings {
+  bgLevel: 1 | 2 | 3 | 4;                 // ความเข้มพื้นหลัง (1 = เข้มเดิม, 4 = สว่างสุด)
+  textContrast: 'normal' | 'high';         // ความคมชัดตัวอักษรรอง
+  fontScale: 'sm' | 'md' | 'lg';           // ขนาดตัวอักษรพื้นฐาน
+  accentLevel: 'high' | 'low';             // ใช้สีนีออนเป็นตัวหนังสือ มาก/น้อย
+  showEyebrows: boolean;                   // แสดงป้ายหมวดเหนือหัวข้อ (↗)
+}
+
 /** ปรับขนาด/สี/เปิดปิดของข้อความแต่ละชิ้นใน Hero — ไม่ตั้งค่า = ใช้ค่า default เดิมของ element นั้น */
 export interface TextStyle {
   fontSize?: string;
@@ -194,6 +203,8 @@ export interface SiteSettings {
     heading2: string;
     description: string;
   };
+  /** การแสดงผล/ธีม — ปรับจากหน้า admin ได้ real-time (ผ่าน CSS variables) */
+  theme: ThemeSettings;
   contact: {
     address: string;
     email: string;
@@ -273,6 +284,13 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     heading1: 'ร่วมก้าวใหม่',
     heading2: 'ไปกับเรา',
     description: 'ร่วมเป็นส่วนหนึ่งของการเปลี่ยนแปลง ด้วยกันเราจะสร้างประเทศไทยที่ดีกว่าสำหรับทุกคน ก้าวใหม่ให้ไทยสตรอง',
+  },
+  theme: {
+    bgLevel: 2,
+    textContrast: 'normal',
+    fontScale: 'md',
+    accentLevel: 'high',
+    showEyebrows: true,
   },
   contact: {
     address: 'กรุงเทพมหานคร ประเทศไทย',

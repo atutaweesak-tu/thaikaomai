@@ -1,4 +1,5 @@
 import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData, Poll, PopupSettings, PopupItem } from '../types';
+import { normalizeTheme } from '../lib/theme';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 
@@ -224,6 +225,7 @@ function mergeSettings(data: any): SiteSettings {
     privacy: { ...DEFAULT_SETTINGS.privacy, ...(data?.privacy ?? {}) },
     hero: { ...DEFAULT_SETTINGS.hero, ...(data?.hero ?? {}) },
     cta: { ...DEFAULT_SETTINGS.cta, ...(data?.cta ?? {}) },
+    theme: normalizeTheme(data?.theme),
     contact: { ...DEFAULT_SETTINGS.contact, ...(data?.contact ?? {}) },
     footer: { ...DEFAULT_SETTINGS.footer, ...(data?.footer ?? {}) },
     pages: { ...DEFAULT_SETTINGS.pages, ...(data?.pages ?? {}) },

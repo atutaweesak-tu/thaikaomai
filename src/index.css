@@ -20,15 +20,35 @@
   --text-8xl--line-height: 1.08;
 }
 
+/* ── ตัวแปรที่ปรับได้จากหน้า admin (แท็บ "การแสดงผล") — ThemeApplier เขียนทับที่ <html> ตอน runtime
+   ค่าล่างนี้คือ fallback = ธีม default (bgLevel 2 / normal / md / accent high) ── */
+:root {
+  --surface-section: rgba(255, 255, 255, 0.02);
+  --surface-card: rgba(255, 255, 255, 0.06);
+  --text-muted: rgba(255, 255, 255, 0.62);
+  --text-faint: rgba(255, 255, 255, 0.45);
+  --root-font-size: 16px;
+  --accent-text: #E6FF00;
+  --accent-bar: rgba(230, 255, 0, 0.40);
+}
+
+.text-muted { color: var(--text-muted); }
+.text-faint { color: var(--text-faint); }
+.accent-text { color: var(--accent-text); }
+
+/* accentLevel=low: คำเน้นในหัวข้อเป็นสีขาว ไม่มีเรืองแสง */
+:root[data-accent="low"] .accent-word { color: #fff; text-shadow: none; }
+
 @layer base {
   body {
     @apply bg-brand-navy text-white font-sans antialiased;
+    font-size: var(--root-font-size, 16px);
     /* แสงจางๆ จากด้านบน ให้พื้นมีมิติ แทนดำแบนทั้งหน้า */
     background-image: radial-gradient(1100px 520px at 50% -240px, rgba(255, 255, 255, 0.045), transparent 70%);
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
-  
+
   h1, h2, h3, h4, h5, h6 {
     @apply font-display font-bold tracking-tight;
   }
@@ -39,7 +59,8 @@
 }
 
 .bento-card {
-  @apply bg-white/[0.06] border border-white/15 rounded-3xl p-6 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300;
+  @apply border border-white/15 rounded-3xl p-6 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300;
+  background-color: var(--surface-card);
 }
 .bento-card:hover {
   box-shadow: 0 12px 40px -12px rgba(230, 255, 0, 0.18);

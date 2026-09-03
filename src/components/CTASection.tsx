@@ -33,7 +33,7 @@ export default function CTASection() {
             {cta.heading2 && <AccentUnderline glow className="text-brand-neon">{cta.heading2}</AccentUnderline>}
           </h2>
           {cta.description && (
-            <p className="text-white/50 text-base md:text-lg mb-8 max-w-xl mx-auto leading-relaxed">
+            <p className="text-muted text-base md:text-lg mb-8 max-w-xl mx-auto leading-relaxed">
               {cta.description}
             </p>
           )}

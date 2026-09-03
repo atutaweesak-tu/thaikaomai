@@ -13,6 +13,7 @@ import PopupBanner from './components/PopupBanner';
 import SiteNoticeBar from './components/SiteNoticeBar';
 import ScrollToTop from './components/ScrollToTop';
 import ScrollProgress from './components/ScrollProgress';
+import ThemeApplier from './components/ThemeApplier';
 import HomePage from './pages/HomePage';
 
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -37,6 +38,7 @@ export default function App() {
         <Router>
           <ScrollToTop />
           <ScrollProgress />
+          <ThemeApplier />
           <div className="min-h-screen flex flex-col">
             <ErrorBoundary fallback={null}>
               <PopupBanner />

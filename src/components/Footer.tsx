@@ -35,7 +35,7 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-white/[0.02] border-t border-white/10 pt-20 pb-10">
+    <footer className="bg-[var(--surface-section)] border-t border-white/10 pt-20 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           {/* Brand */}
@@ -43,7 +43,7 @@ export default function Footer() {
             <Link to="/" className="flex items-center gap-2 mb-6">
               <img src="/tkm-logo.png" alt="ไทยก้าวใหม่" className="h-12 w-auto" loading="lazy" />
             </Link>
-            <p className="text-white/50 text-sm leading-relaxed mb-6 max-w-md">
+            <p className="text-muted text-sm leading-relaxed mb-6 max-w-md">
               {footer.description}
             </p>
             <div className="flex gap-4">
@@ -77,7 +77,7 @@ export default function Footer() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="อีเมลของคุณ"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-brand-neon transition-colors"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-faint focus:outline-none focus:border-brand-neon transition-colors"
                 />
                 <button
                   type="submit"
@@ -99,7 +99,7 @@ export default function Footer() {
           {/* Contact */}
           <div>
             <h4 className="font-bold mb-6">ติดต่อพรรค</h4>
-            <ul className="space-y-4 text-sm text-white/50">
+            <ul className="space-y-4 text-sm text-muted">
               {contact.address && (
                 <li className="flex items-start gap-3">
                   <MapPin size={18} className="text-brand-neon shrink-0" />
@@ -121,14 +121,14 @@ export default function Footer() {
             </ul>
             {contact.qrCode && (
               <div className="mt-6">
-                <p className="text-xs text-white/30 mb-2">สแกน QR เพื่อติดตาม</p>
+                <p className="text-xs text-faint mb-2">สแกน QR เพื่อติดตาม</p>
                 <img src={contact.qrCode} alt="QR Code" className="w-24 h-24 object-contain rounded-xl border border-white/10 bg-white p-1.5" loading="lazy" />
               </div>
             )}
           </div>
         </div>
 
-        <div className="border-t border-white/10 pt-10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-white/30">
+        <div className="border-t border-white/10 pt-10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-faint">
           <p>{footer.copyright}</p>
           <div className="flex gap-6">
             <Link to="/privacy" className="hover:text-white transition-colors">นโยบายความเป็นส่วนตัว</Link>

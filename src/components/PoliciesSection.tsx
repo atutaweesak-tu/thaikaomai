@@ -31,7 +31,7 @@ export default function PoliciesSection() {
   const homePolices = featured.length > 0 ? featured : visiblePolicies.slice(0, 4);
 
   return (
-    <section className="py-24 bg-white/[0.02]">
+    <section className="py-24 bg-[var(--surface-section)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
           <div className="max-w-2xl">
@@ -40,7 +40,7 @@ export default function PoliciesSection() {
               ธนู 4 ดอก <br />
               <AccentUnderline glow className="text-brand-neon">นโยบายพรรค</AccentUnderline>
             </h2>
-            <p className="text-white/50 text-lg">
+            <p className="text-muted text-lg">
               4 นโยบายหลักที่ออกแบบมาเพื่อแก้ปัญหาสำคัญของประเทศ สร้างประเทศไทยให้แข็งแกร่งและทัดเทียมระดับโลก
             </p>
           </div>
@@ -75,7 +75,7 @@ export default function PoliciesSection() {
                     : IconComponent ? <IconComponent size={28} /> : null}
                 </div>
                 <h3 className="relative text-xl font-bold mb-4 tracking-tight leading-snug">{policy.title}</h3>
-                <p className="relative text-white/50 text-sm leading-relaxed">
+                <p className="relative text-muted text-sm leading-relaxed">
                   {policy.description}
                 </p>
               </motion.div>

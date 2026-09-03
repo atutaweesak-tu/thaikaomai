@@ -24,6 +24,7 @@ import {
 import { NewsItem, EventItem, Policy, TeamMember, Poll, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData, PopupItem } from '../types';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 import ImageUploadField from '../components/ImageUploadField';
+import { themeCssVars, normalizeTheme } from '../lib/theme';
 
 type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'polls' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings' | 'analytics';
 
@@ -183,6 +184,14 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       .finally(() => setAnalyticsLoading(false));
   }, [tab, analyticsDays]);
 
+  // พรีวิวธีมสด ๆ ในหน้า admin เมื่อกดปุ่มเลือก (ผู้เข้าชมเห็นหลังกด "บันทึกทั้งหมด")
+  useEffect(() => {
+    const el = document.documentElement;
+    const vars = themeCssVars(siteSettings.theme);
+    for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
+    el.dataset.accent = normalizeTheme(siteSettings.theme).accentLevel;
+  }, [siteSettings.theme]);
+
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     setSettingsSaved(false);
@@ -254,6 +263,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     setSiteSettings(s => ({ ...s, pages: { ...s.pages, [key]: val } }));
   const setPopup = (key: string, val: string | boolean) =>
     setSiteSettings(s => ({ ...s, popup: { ...s.popup, [key]: val } }));
+  const setTheme = (key: keyof SiteSettings['theme'], val: SiteSettings['theme'][keyof SiteSettings['theme']]) =>
+    setSiteSettings(s => ({ ...s, theme: { ...s.theme, [key]: val } }));
   const popupItems = (): PopupItem[] => siteSettings.popup.items ?? [];
   const addPopupItem = () =>
     setSiteSettings(s => ({
@@ -1341,6 +1352,55 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   <p className="text-white/30 text-xs mt-1">รองรับการขึ้นบรรทัดใหม่ (Enter)</p>
                 </div>
               </div>
+            </div>
+
+            {/* ⑦ การแสดงผล / ธีม */}
+            <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
+              <h2 className="text-xl font-black mb-2 flex items-center gap-2"><span className="text-brand-neon">⑦</span> การแสดงผล / ธีม</h2>
+              <p className="text-white/40 text-xs mb-6">ปรับหน้าตาเว็บได้ตลอดเวลา — กด "บันทึกทั้งหมด" แล้วผู้เข้าชมเห็นทันที (ไม่ต้อง deploy)</p>
+              {(() => {
+                const th = siteSettings.theme;
+                const Seg = ({ label, hint, value, opts, onPick }: { label: string; hint?: string; value: any; opts: { v: any; t: string }[]; onPick: (v: any) => void }) => (
+                  <div className="mb-6">
+                    <p className="font-bold text-sm">{label}</p>
+                    {hint && <p className="text-white/40 text-xs mt-0.5 mb-2">{hint}</p>}
+                    <div className="inline-flex flex-wrap gap-1.5 mt-1">
+                      {opts.map(o => (
+                        <button key={String(o.v)} type="button" onClick={() => onPick(o.v)}
+                          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${value === o.v ? 'bg-brand-neon text-brand-navy border-brand-neon' : 'bg-white/5 border-white/15 text-white/60 hover:bg-white/10'}`}>
+                          {o.t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+                return (
+                  <div>
+                    <Seg label="ความเข้มพื้นหลัง" hint="เข้มสุด = แบบเดิม, สว่างขึ้น = อ่านสบายตากว่า"
+                      value={th.bgLevel} onPick={v => setTheme('bgLevel', v)}
+                      opts={[{ v: 1, t: 'เข้มสุด' }, { v: 2, t: 'เข้ม' }, { v: 3, t: 'กลาง' }, { v: 4, t: 'สว่าง' }]} />
+                    <Seg label="ความคมชัดตัวอักษรรอง" hint="คำอธิบาย/รายละเอียด — 'สูง' อ่านง่ายขึ้นบนพื้นมืด"
+                      value={th.textContrast} onPick={v => setTheme('textContrast', v)}
+                      opts={[{ v: 'normal', t: 'ปกติ' }, { v: 'high', t: 'สูง' }]} />
+                    <Seg label="ขนาดตัวอักษรพื้นฐาน"
+                      value={th.fontScale} onPick={v => setTheme('fontScale', v)}
+                      opts={[{ v: 'sm', t: 'เล็ก' }, { v: 'md', t: 'กลาง' }, { v: 'lg', t: 'ใหญ่' }]} />
+                    <Seg label="สีนีออนในตัวหนังสือ" hint="'น้อย' = ป้าย/คำเน้นเป็นสีขาว (ปุ่มยังเป็นนีออนเสมอ)"
+                      value={th.accentLevel} onPick={v => setTheme('accentLevel', v)}
+                      opts={[{ v: 'high', t: 'มาก' }, { v: 'low', t: 'น้อย' }]} />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-sm">แสดงป้ายหมวดเหนือหัวข้อ (↗)</p>
+                        <p className="text-white/40 text-xs mt-0.5">เช่น "↗ นโยบายหลัก", "↗ คนของเรา" บนหน้าแรก</p>
+                      </div>
+                      <button type="button" onClick={() => setTheme('showEyebrows', !th.showEyebrows)}
+                        className={`relative w-12 h-6 rounded-full transition-colors ${th.showEyebrows ? 'bg-brand-neon' : 'bg-white/20'}`}>
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${th.showEyebrows ? 'left-7' : 'left-1'}`} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Save / Reset Buttons */}

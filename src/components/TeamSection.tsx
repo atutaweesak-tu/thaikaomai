@@ -33,7 +33,7 @@ export default function TeamSection() {
             ทีมผู้นำ<br />
             <AccentUnderline glow className="text-brand-neon">พรรคไทยก้าวใหม่</AccentUnderline>
           </h2>
-          <p className="text-white/50 text-lg max-w-2xl mx-auto">
+          <p className="text-muted text-lg max-w-2xl mx-auto">
             ทีมนักวิชาการ นักการศึกษา และผู้เชี่ยวชาญที่มุ่งมั่นพัฒนาประเทศไทยให้ก้าวหน้า
           </p>
         </div>
@@ -68,7 +68,7 @@ export default function TeamSection() {
                 </div>
                 <h3 className="text-2xl font-black tracking-tighter mb-1 group-hover:text-brand-neon transition-colors">{member.name}</h3>
                 <p className="text-brand-neon text-sm font-bold uppercase tracking-widest mb-3">{member.role}</p>
-                <p className="text-white/40 text-sm">{member.bio}</p>
+                <p className="text-faint text-sm">{member.bio}</p>
               </Link>
             </motion.div>
           ))}
