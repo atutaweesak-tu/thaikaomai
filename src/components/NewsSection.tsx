@@ -6,6 +6,7 @@ import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
 import { subscribeToNews, subscribeToEvents } from '../services/dataService';
 import { NewsItem, EventItem } from '../types';
 import { upcomingEvents, dateBadgeParts } from '../utils/events';
+import AccentUnderline from './AccentUnderline';
 
 export default function NewsSection() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -44,7 +45,7 @@ export default function NewsSection() {
             <div className="flex justify-between items-end mb-12">
               <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15]">
                 ข่าวสาร <br />
-                <span className="text-brand-neon">ความเคลื่อนไหว</span>
+                <AccentUnderline className="text-brand-neon">ความเคลื่อนไหว</AccentUnderline>
               </h2>
               <Link to="/news" className="text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all whitespace-nowrap">
                 ข่าวทั้งหมด <ArrowRight size={20} />
@@ -99,7 +100,10 @@ export default function NewsSection() {
           {/* Events Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 h-full">
-              <h3 className="text-3xl font-black tracking-tighter leading-[1.2] mb-10">กิจกรรม <br /> ที่จะถึง</h3>
+              <h3 className="text-3xl font-black tracking-tighter leading-[1.2] mb-10">
+                กิจกรรม <br />
+                <AccentUnderline>ที่จะถึง</AccentUnderline>
+              </h3>
               
               {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap เหมือนการ์ดข่าวด้านบน — ห่อการ์ดแต่ละ event ด้วย
                   กรอบบางๆ ให้เห็นขอบเขตตอนเลื่อน ส่วนจอ md ขึ้นไปกลับไปเป็น list แนวตั้งแบบเดิม */}

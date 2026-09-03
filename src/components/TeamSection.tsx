@@ -5,6 +5,7 @@ import { ArrowRight, User } from 'lucide-react';
 import { TEAM as FALLBACK_TEAM } from '../constants';
 import { subscribeToTeam } from '../services/dataService';
 import { TeamMember } from '../types';
+import AccentUnderline from './AccentUnderline';
 
 export default function TeamSection() {
   const [team, setTeam] = useState<TeamMember[]>(FALLBACK_TEAM);
@@ -28,7 +29,7 @@ export default function TeamSection() {
         <div className="text-center mb-20">
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15] mb-6">
             ทีมผู้นำ<br />
-            <span className="text-brand-neon">พรรคไทยก้าวใหม่</span>
+            <AccentUnderline className="text-brand-neon">พรรคไทยก้าวใหม่</AccentUnderline>
           </h2>
           <p className="text-white/50 text-lg max-w-2xl mx-auto">
             ทีมนักวิชาการ นักการศึกษา และผู้เชี่ยวชาญที่มุ่งมั่นพัฒนาประเทศไทยให้ก้าวหน้า

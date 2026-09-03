@@ -5,6 +5,7 @@ import { Send, Check, UserPlus } from 'lucide-react';
 import { addNewsletterSubscriber, subscribeToSiteSettings } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
 import Honeypot from './Honeypot';
+import AccentUnderline from './AccentUnderline';
 
 export default function CTASection() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
@@ -45,7 +46,7 @@ export default function CTASection() {
         >
           <h2 className="text-5xl md:text-8xl font-black tracking-tighter leading-[1.05] mb-8">
             {settings.cta.heading1}<br />
-            {settings.cta.heading2}
+            <AccentUnderline barClassName="bg-brand-navy/30">{settings.cta.heading2}</AccentUnderline>
           </h2>
           <p className="text-brand-navy/70 text-xl md:text-2xl font-medium mb-12 max-w-2xl mx-auto">
             {settings.cta.description}

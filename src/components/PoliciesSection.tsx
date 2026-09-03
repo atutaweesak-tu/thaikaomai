@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react';
 import { POLICIES as FALLBACK_POLICIES } from '../constants';
 import { subscribeToPolicies } from '../services/dataService';
 import { Policy } from '../types';
+import AccentUnderline from './AccentUnderline';
 
 export default function PoliciesSection() {
   const [policies, setPolicies] = useState<Policy[]>(FALLBACK_POLICIES);
@@ -35,16 +36,7 @@ export default function PoliciesSection() {
           <div className="max-w-2xl">
             <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15] mb-6">
               ธนู 4 ดอก <br />
-              <span className="relative inline-block text-brand-neon">
-                นโยบายพรรค
-                <motion.span
-                  className="absolute left-0 -bottom-1 h-1 w-full bg-brand-neon/40 rounded-full origin-left"
-                  initial={{ scaleX: 0 }}
-                  whileInView={{ scaleX: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.25, duration: 0.5, ease: 'easeOut' }}
-                />
-              </span>
+              <AccentUnderline className="text-brand-neon">นโยบายพรรค</AccentUnderline>
             </h2>
             <p className="text-white/50 text-lg">
               4 นโยบายหลักที่ออกแบบมาเพื่อแก้ปัญหาสำคัญของประเทศ สร้างประเทศไทยให้แข็งแกร่งและทัดเทียมระดับโลก
