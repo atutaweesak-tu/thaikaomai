@@ -5,7 +5,8 @@
   --font-sans: "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Noto Sans Thai", sans-serif;
 
-  --color-brand-navy: #181534;
+  /* navy ยกสว่างขึ้นเล็กน้อย + เอียงจากม่วงมาทางน้ำเงิน — ลดความ "หนัก/เกือบดำ" */
+  --color-brand-navy: #1b1d33;
   --color-brand-neon: #E6FF00;
   --color-brand-accent: #D8EF00;
   --color-brand-gray: #F5F5F5;
@@ -22,6 +23,10 @@
 @layer base {
   body {
     @apply bg-brand-navy text-white font-sans antialiased;
+    /* แสงจางๆ จากด้านบน ให้พื้นมีมิติ แทนดำแบนทั้งหน้า */
+    background-image: radial-gradient(1100px 520px at 50% -240px, rgba(255, 255, 255, 0.045), transparent 70%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -34,7 +39,7 @@
 }
 
 .bento-card {
-  @apply bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300;
+  @apply bg-white/[0.06] border border-white/15 rounded-3xl p-6 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300;
 }
 .bento-card:hover {
   box-shadow: 0 12px 40px -12px rgba(230, 255, 0, 0.18);

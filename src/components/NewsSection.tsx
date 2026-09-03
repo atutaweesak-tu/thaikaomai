@@ -37,7 +37,7 @@ export default function NewsSection() {
   const visibleEvents = upcomingEvents(events);
 
   return (
-    <section className="py-24 bg-black/20">
+    <section className="py-24 bg-white/[0.02]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
           {/* News Feed */}
