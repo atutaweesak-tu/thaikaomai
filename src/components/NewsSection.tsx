@@ -7,6 +7,7 @@ import { subscribeToNews, subscribeToEvents } from '../services/dataService';
 import { NewsItem, EventItem } from '../types';
 import { upcomingEvents, dateBadgeParts } from '../utils/events';
 import AccentUnderline from './AccentUnderline';
+import SectionEyebrow from './SectionEyebrow';
 
 export default function NewsSection() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -43,10 +44,13 @@ export default function NewsSection() {
           {/* News Feed */}
           <div className="lg:col-span-2">
             <div className="flex justify-between items-end mb-12">
-              <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15]">
-                ข่าวสาร <br />
-                <AccentUnderline className="text-brand-neon">ความเคลื่อนไหว</AccentUnderline>
-              </h2>
+              <div>
+                <SectionEyebrow>อัปเดตล่าสุด</SectionEyebrow>
+                <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15]">
+                  ข่าวสาร <br />
+                  <AccentUnderline glow className="text-brand-neon">ความเคลื่อนไหว</AccentUnderline>
+                </h2>
+              </div>
               <Link to="/news" className="text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all whitespace-nowrap">
                 ข่าวทั้งหมด <ArrowRight size={20} />
               </Link>

@@ -7,6 +7,7 @@ import { POLICIES as FALLBACK_POLICIES } from '../constants';
 import { subscribeToPolicies } from '../services/dataService';
 import { Policy } from '../types';
 import AccentUnderline from './AccentUnderline';
+import SectionEyebrow from './SectionEyebrow';
 
 export default function PoliciesSection() {
   const [policies, setPolicies] = useState<Policy[]>(FALLBACK_POLICIES);
@@ -34,9 +35,10 @@ export default function PoliciesSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
           <div className="max-w-2xl">
+            <SectionEyebrow>นโยบายหลัก</SectionEyebrow>
             <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15] mb-6">
               ธนู 4 ดอก <br />
-              <AccentUnderline className="text-brand-neon">นโยบายพรรค</AccentUnderline>
+              <AccentUnderline glow className="text-brand-neon">นโยบายพรรค</AccentUnderline>
             </h2>
             <p className="text-white/50 text-lg">
               4 นโยบายหลักที่ออกแบบมาเพื่อแก้ปัญหาสำคัญของประเทศ สร้างประเทศไทยให้แข็งแกร่งและทัดเทียมระดับโลก

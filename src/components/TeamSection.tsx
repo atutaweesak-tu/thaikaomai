@@ -6,6 +6,7 @@ import { TEAM as FALLBACK_TEAM } from '../constants';
 import { subscribeToTeam } from '../services/dataService';
 import { TeamMember } from '../types';
 import AccentUnderline from './AccentUnderline';
+import SectionEyebrow from './SectionEyebrow';
 
 export default function TeamSection() {
   const [team, setTeam] = useState<TeamMember[]>(FALLBACK_TEAM);
@@ -27,9 +28,10 @@ export default function TeamSection() {
     <section className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-20">
+          <SectionEyebrow className="justify-center">คนของเรา</SectionEyebrow>
           <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15] mb-6">
             ทีมผู้นำ<br />
-            <AccentUnderline className="text-brand-neon">พรรคไทยก้าวใหม่</AccentUnderline>
+            <AccentUnderline glow className="text-brand-neon">พรรคไทยก้าวใหม่</AccentUnderline>
           </h2>
           <p className="text-white/50 text-lg max-w-2xl mx-auto">
             ทีมนักวิชาการ นักการศึกษา และผู้เชี่ยวชาญที่มุ่งมั่นพัฒนาประเทศไทยให้ก้าวหน้า

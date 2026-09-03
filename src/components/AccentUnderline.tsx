@@ -9,12 +9,16 @@ interface Props {
   barClassName?: string;
   /** หน่วงก่อนเส้นวิ่ง (วินาที) */
   delay?: number;
+  /** เรืองแสงนีออน (text-shadow) — ใช้เฉพาะตอนตัวอักษรเป็นสีนีออน */
+  glow?: boolean;
 }
 
 /** คำในหัวข้อ + เส้นใต้ที่ "วิ่ง" เข้ามาตอน scroll ถึง (respect prefers-reduced-motion ผ่าน CSS guard) */
-export default function AccentUnderline({ children, className = '', barClassName = 'bg-brand-neon/40', delay = 0.25 }: Props) {
+export default function AccentUnderline({ children, className = '', barClassName = 'bg-brand-neon/40', delay = 0.25, glow = false }: Props) {
   return (
-    <span className={`relative inline-block ${className}`}>
+    <span
+      className={`relative inline-block ${className} ${glow ? '[text-shadow:0_0_26px_rgba(230,255,0,0.38)]' : ''}`}
+    >
       {children}
       <motion.span
         aria-hidden
