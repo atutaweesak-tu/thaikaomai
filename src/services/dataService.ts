@@ -109,7 +109,15 @@ export const deleteCategory = (id: string) => apiDelete('categories', id);
 
 // ─── HOME PAGE BLOCKS (ลำดับ section หน้าแรก) ─────────────────────────────────
 
-export const subscribeToHomeBlocks = (cb: (b: PageBlock[]) => void) => subscribeToCollection<PageBlock>('homeblocks', cb);
+// promo block: รวมรูปเดี่ยวเดิม (image) เข้ากับสไลด์ใหม่ (images[]) — คืน images ที่ normalize แล้วเสมอ
+function normalizeHomeBlock(b: PageBlock): PageBlock {
+  if (b.type !== 'promo') return b;
+  const list = Array.isArray(b.images) ? b.images.filter(u => typeof u === 'string' && u) : [];
+  const images = list.length ? list : (b.image ? [b.image] : []);
+  return { ...b, images };
+}
+export const subscribeToHomeBlocks = (cb: (b: PageBlock[]) => void) =>
+  subscribeToCollection<PageBlock>('homeblocks', blocks => cb(blocks.map(normalizeHomeBlock)));
 export const addHomeBlock = (block: Omit<PageBlock, 'id'>) => apiAdd('homeblocks', block);
 export const updateHomeBlock = (id: string, block: Partial<PageBlock>) => apiUpdate('homeblocks', id, block);
 export const deleteHomeBlock = (id: string) => apiDelete('homeblocks', id);

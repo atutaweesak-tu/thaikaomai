@@ -88,7 +88,8 @@ export interface PageBlock extends AuditFields {
   // ── ใช้เฉพาะ type: 'promo' ──
   title?: string;
   description?: string;
-  image?: string;
+  image?: string;        // เดิม (รูปเดียว) — คงไว้เพื่อ backward-compat
+  images?: string[];      // ใหม่ — สไลด์รูป (ถ้ามี > 1 จะเลื่อนอัตโนมัติ)
   link?: string;
   buttonText?: string;
 }

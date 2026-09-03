@@ -47,7 +47,7 @@ const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', 
 const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_POLICY: Omit<Policy, 'id'> = { title: '', description: '', icon: 'BookOpen', iconImage: '', color: '#E6FF00', published: true, publishAt: '', unpublishAt: '', featuredHome: false };
 const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', content: '', category: 'leader', published: true, featuredHome: false };
-const EMPTY_PROMO_BLOCK: Omit<PageBlock, 'id'> = { type: 'promo', order: 0, title: '', description: '', image: '', link: '', buttonText: '', published: true, publishAt: '', unpublishAt: '' };
+const EMPTY_PROMO_BLOCK: Omit<PageBlock, 'id'> = { type: 'promo', order: 0, title: '', description: '', image: '', images: [], link: '', buttonText: '', published: true, publishAt: '', unpublishAt: '' };
 const FONT_SIZE_OPTIONS = [
   { value: '', label: 'ค่าเริ่มต้น' },
   { value: 'text-sm', label: 'เล็ก' },
@@ -671,7 +671,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const currentData: Record<string, any[]> = { news, events, policies: sortedPolicies, team: sortedTeam, homeBlocks: sortedHomeBlocks, newsletter, contact, volunteer };
   const canEdit = ['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && hasTabPermission(tab);
 
-  const fieldConfig: Record<string, { key: string; label: string; type: string; maxLength?: number; options?: string[]; optionLabels?: string[] }[]> = {
+  const fieldConfig: Record<string, { key: string; label: string; type: string; maxLength?: number; options?: string[]; optionLabels?: string[]; max?: number }[]> = {
     news: [
       { key: 'title', label: 'หัวข้อข่าว', type: 'text', maxLength: 200 },
       { key: 'summary', label: 'สรุปข่าว', type: 'textarea', maxLength: 500 },
@@ -733,7 +733,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     homeBlocks: [
       { key: 'title', label: 'หัวข้อ', type: 'text', maxLength: 200 },
       { key: 'description', label: 'รายละเอียด', type: 'textarea', maxLength: 500 },
-      { key: 'image', label: 'รูปภาพ — แนะนำแนวนอน 16:9 เช่น 1200×675px ไม่เกิน 5MB', type: 'image-upload' },
+      { key: 'images', label: 'รูปภาพ (ใส่ได้หลายรูป — เลื่อนสไลด์อัตโนมัติ สูงสุด 6 รูป) — ทุกรูปแนวนอน 16:9 เช่น 1600×900px ไม่เกิน 5MB/รูป', type: 'image-list', max: 6 },
       { key: 'link', label: 'ลิงก์ปลายทาง', type: 'text' },
       { key: 'buttonText', label: 'ข้อความปุ่ม', type: 'text', maxLength: 50 },
       { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
@@ -1872,6 +1872,11 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           ★ หน้าหลัก
                         </span>
                       )}
+                      {tab === 'homeBlocks' && item.type === 'promo' && (item.images?.length || item.image) && (
+                        <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
+                          {(item.images?.length || (item.image ? 1 : 0))} รูป
+                        </span>
+                      )}
                       {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.publishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           เริ่ม {new Date(item.publishAt).toLocaleDateString('th-TH')}
@@ -1977,6 +1982,56 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                       onChange={v => setModal(m => ({ ...m, data: { ...m.data, [field.key]: v } }))}
                       label={field.label}
                     />
+                  ) : field.type === 'image-list' ? (
+                    (() => {
+                      const arr: string[] = Array.isArray(modal.data[field.key]) ? modal.data[field.key] : [];
+                      const setArr = (next: string[]) => setModal(m => ({ ...m, data: { ...m.data, [field.key]: next } }));
+                      const max = field.max ?? 6;
+                      return (
+                        <div className="space-y-4">
+                          {arr.length === 0 && (
+                            <p className="text-white/30 text-sm py-3 text-center border border-dashed border-white/10 rounded-xl">
+                              ยังไม่มีรูป — กด "เพิ่มรูป" ด้านล่าง
+                            </p>
+                          )}
+                          {arr.map((url, i) => (
+                            <div key={i} className="border border-white/10 bg-white/[0.03] rounded-2xl p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-brand-neon">รูปที่ {i + 1}</span>
+                                <div className="flex items-center gap-1">
+                                  <button type="button" title="เลื่อนขึ้น" disabled={i === 0}
+                                    onClick={() => { const n = [...arr]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; setArr(n); }}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 transition-colors">
+                                    <ChevronUp size={15} />
+                                  </button>
+                                  <button type="button" title="เลื่อนลง" disabled={i === arr.length - 1}
+                                    onClick={() => { const n = [...arr]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; setArr(n); }}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 transition-colors">
+                                    <ChevronDown size={15} />
+                                  </button>
+                                  <button type="button" title="ลบรูป"
+                                    onClick={() => setArr(arr.filter((_, j) => j !== i))}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </div>
+                              <ImageUploadField
+                                value={url || ''}
+                                onChange={v => setArr(arr.map((x, j) => (j === i ? v : x)))}
+                                label={`รูปที่ ${i + 1}`}
+                              />
+                            </div>
+                          ))}
+                          {arr.length < max && (
+                            <button type="button" onClick={() => setArr([...arr, ''])}
+                              className="w-full flex items-center justify-center gap-2 border border-dashed border-white/15 hover:border-brand-neon/50 hover:bg-white/5 text-white/60 hover:text-white text-sm font-bold py-3 rounded-xl transition-colors">
+                              <Plus size={16} /> เพิ่มรูป ({arr.length}/{max})
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()
                   ) : field.type === 'color-picker' ? (
                     <div className="flex items-center gap-4">
                       <input
