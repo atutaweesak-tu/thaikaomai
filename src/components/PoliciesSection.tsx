@@ -33,9 +33,18 @@ export default function PoliciesSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
           <div className="max-w-2xl">
-            <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">
+            <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15] mb-6">
               ธนู 4 ดอก <br />
-              <span className="text-brand-neon">นโยบายพรรค</span>
+              <span className="relative inline-block text-brand-neon">
+                นโยบายพรรค
+                <motion.span
+                  className="absolute left-0 -bottom-1 h-1 w-full bg-brand-neon/40 rounded-full origin-left"
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.25, duration: 0.5, ease: 'easeOut' }}
+                />
+              </span>
             </h2>
             <p className="text-white/50 text-lg">
               4 นโยบายหลักที่ออกแบบมาเพื่อแก้ปัญหาสำคัญของประเทศ สร้างประเทศไทยให้แข็งแกร่งและทัดเทียมระดับโลก
@@ -53,19 +62,26 @@ export default function PoliciesSection() {
             return (
               <motion.div
                 key={policy.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                initial={{ opacity: 0, y: 24, x: -6 }}
+                whileInView={{ opacity: 1, y: 0, x: 0 }}
+                transition={{ delay: index * 0.09, duration: 0.5, ease: 'easeOut' }}
                 viewport={{ once: true }}
-                className="bento-card group shrink-0 w-[80%] snap-center md:w-auto md:shrink"
+                className="bento-card group relative overflow-hidden shrink-0 w-[80%] snap-center md:w-auto md:shrink"
               >
-                <div className="w-14 h-14 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-6 group-hover:bg-brand-neon group-hover:text-brand-navy transition-all duration-300 overflow-hidden">
+                {/* เลขลำดับธนู (ธนูดอกที่ N) — จางๆ เป็นพื้นหลัง */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -top-3 right-1 text-[5rem] leading-none font-black text-white/[0.045] group-hover:text-brand-neon/10 transition-colors duration-300 select-none"
+                >
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <div className="relative w-14 h-14 bg-brand-neon/10 rounded-2xl flex items-center justify-center text-brand-neon mb-6 group-hover:bg-brand-neon group-hover:text-brand-navy group-hover:scale-110 group-hover:-rotate-6 transition-all duration-300 overflow-hidden">
                   {policy.iconImage
                     ? <img src={policy.iconImage} alt={policy.title} className="w-full h-full object-cover" loading="lazy" />
                     : IconComponent ? <IconComponent size={28} /> : null}
                 </div>
-                <h3 className="text-xl font-bold mb-4 tracking-tight">{policy.title}</h3>
-                <p className="text-white/50 text-sm leading-relaxed">
+                <h3 className="relative text-xl font-bold mb-4 tracking-tight leading-snug">{policy.title}</h3>
+                <p className="relative text-white/50 text-sm leading-relaxed">
                   {policy.description}
                 </p>
               </motion.div>

@@ -43,7 +43,7 @@ export default function CTASection() {
           viewport={{ once: true }}
           className="bg-brand-neon rounded-[60px] p-12 md:p-24 text-brand-navy"
         >
-          <h2 className="text-5xl md:text-8xl font-black tracking-tighter leading-[0.85] mb-8">
+          <h2 className="text-5xl md:text-8xl font-black tracking-tighter leading-[1.05] mb-8">
             {settings.cta.heading1}<br />
             {settings.cta.heading2}
           </h2>

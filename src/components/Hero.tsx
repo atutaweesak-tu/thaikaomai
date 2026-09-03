@@ -66,7 +66,7 @@ export default function Hero() {
       )}
 
       {headingLines.length > 0 && (
-        <h1 className="font-black tracking-tighter leading-[0.9] mb-8">
+        <h1 className="font-black tracking-tighter leading-[1.05] mb-8">
           {headingLines.map((line, i) => {
             const ts = h.textStyle?.[line.key];
             return (

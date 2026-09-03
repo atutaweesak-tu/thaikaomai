@@ -4,11 +4,19 @@
 @theme {
   --font-sans: "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Noto Sans Thai", sans-serif;
-  
+
   --color-brand-navy: #181534;
   --color-brand-neon: #E6FF00;
   --color-brand-accent: #D8EF00;
   --color-brand-gray: #F5F5F5;
+
+  /* line-height ของหัวข้อใหญ่ — default ของ Tailwind (≈1) แน่นเกินไปสำหรับภาษาไทย
+     ทำให้สระบน/วรรณยุกต์ของบรรทัดล่างชนบรรทัดบน (ดู หัวข้อ "ธนู 4 ดอก / นโยบายพรรค") */
+  --text-4xl--line-height: 1.2;
+  --text-5xl--line-height: 1.15;
+  --text-6xl--line-height: 1.12;
+  --text-7xl--line-height: 1.1;
+  --text-8xl--line-height: 1.08;
 }
 
 @layer base {

@@ -26,7 +26,7 @@ export default function TeamSection() {
     <section className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-20">
-          <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-6">
+          <h2 className="text-4xl md:text-6xl font-black tracking-tighter leading-[1.15] mb-6">
             ทีมผู้นำ<br />
             <span className="text-brand-neon">พรรคไทยก้าวใหม่</span>
           </h2>
