@@ -48,11 +48,11 @@ export default function NewsSection() {
           <div className="lg:col-span-2">
             <div className="flex justify-between items-end mb-12">
               <h2 className="text-4xl md:text-6xl font-black tracking-tighter">
-                NEWS & <br />
-                <span className="text-brand-neon">UPDATES.</span>
+                ข่าวสาร <br />
+                <span className="text-brand-neon">ความเคลื่อนไหว</span>
               </h2>
-              <Link to="/news" className="text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all">
-                All News <ArrowRight size={20} />
+              <Link to="/news" className="text-brand-neon font-bold flex items-center gap-2 hover:gap-4 transition-all whitespace-nowrap">
+                ข่าวทั้งหมด <ArrowRight size={20} />
               </Link>
             </div>
 
@@ -104,7 +104,7 @@ export default function NewsSection() {
           {/* Events Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white/5 border border-white/10 rounded-[40px] p-8 h-full">
-              <h3 className="text-3xl font-black tracking-tighter mb-10">UPCOMING <br /> EVENTS.</h3>
+              <h3 className="text-3xl font-black tracking-tighter mb-10">กิจกรรม <br /> ที่จะถึง</h3>
               
               {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap เหมือนการ์ดข่าวด้านบน — ห่อการ์ดแต่ละ event ด้วย
                   กรอบบางๆ ให้เห็นขอบเขตตอนเลื่อน ส่วนจอ md ขึ้นไปกลับไปเป็น list แนวตั้งแบบเดิม */}
@@ -137,7 +137,7 @@ export default function NewsSection() {
               </div>
 
               <button className="neon-button w-full justify-center mt-12">
-                Join Event
+                เข้าร่วมกิจกรรม
               </button>
             </div>
           </div>
