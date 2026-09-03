@@ -1,4 +1,4 @@
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData, Poll } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData, Poll, PopupSettings, PopupItem } from '../types';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
 
@@ -186,11 +186,32 @@ const SETTINGS_LS_KEY = 'tkm_site_settings';
 let _settingsCallbacks: ((s: SiteSettings) => void)[] = [];
 
 /** Deep-merge server data with DEFAULT_SETTINGS so new fields always have defaults */
+/** รวม popup รูปแบบเดิม (รูปเดียว) เข้ากับรูปแบบใหม่ (items[]) — คืน items ที่ normalize แล้วเสมอ */
+function normalizePopup(raw: any): PopupSettings {
+  const p = { ...DEFAULT_SETTINGS.popup, ...(raw ?? {}) } as any;
+  let items: PopupItem[] = Array.isArray(p.items)
+    ? p.items.filter((it: any) => it && typeof it.image === 'string' && it.image)
+    : [];
+  // ยังไม่เคยมี items แต่มี popup เดิม 1 รูป → ยกมาเป็น item แรก
+  if (!items.length && typeof p.image === 'string' && p.image) {
+    items = [{ id: 'legacy', image: p.image, link: p.link || '', startDate: p.startDate || '', endDate: p.endDate || '', enabled: true }];
+  }
+  items = items.map((it, i) => ({
+    id: it.id || `p${i}_${Math.random().toString(36).slice(2, 7)}`,
+    image: it.image,
+    link: it.link || '',
+    startDate: it.startDate || '',
+    endDate: it.endDate || '',
+    enabled: it.enabled !== false,
+  }));
+  return { enabled: !!p.enabled, items };
+}
+
 function mergeSettings(data: any): SiteSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...data,
-    popup: { ...DEFAULT_SETTINGS.popup, ...(data?.popup ?? {}) },
+    popup: normalizePopup(data?.popup),
     about: { ...DEFAULT_SETTINGS.about, ...(data?.about ?? {}) },
     privacy: { ...DEFAULT_SETTINGS.privacy, ...(data?.privacy ?? {}) },
     hero: { ...DEFAULT_SETTINGS.hero, ...(data?.hero ?? {}) },

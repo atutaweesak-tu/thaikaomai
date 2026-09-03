@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { subscribeToSiteSettings } from '../services/dataService';
-import { SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { SiteSettings, DEFAULT_SETTINGS, PopupItem } from '../types';
 import { openSafeUrl } from '../utils/safeUrl';
 
 const DISMISS_KEY_PREFIX = 'tkm_popup_dismissed_';
@@ -16,44 +16,76 @@ function hashImage(str: string): string {
   return hash.toString(36);
 }
 
+function isWithinWindow(item: PopupItem, now: Date): boolean {
+  if (item.startDate && now < new Date(item.startDate)) return false;
+  if (item.endDate && now > new Date(item.endDate)) return false;
+  return true;
+}
+
 export default function PopupBanner() {
   const location = useLocation();
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeToSiteSettings(setSettings);
     return () => unsub();
   }, []);
 
-  const popupKey = settings.popup.image ? DISMISS_KEY_PREFIX + hashImage(settings.popup.image) : '';
+  const popup = settings.popup ?? DEFAULT_SETTINGS.popup;
+
+  // ลายเซ็นของ config popup — คิวจะ re-build เฉพาะตอน config เปลี่ยนจริง (ไม่ใช่ทุก broadcast)
+  const sig = JSON.stringify({
+    on: popup.enabled,
+    items: (popup.items ?? []).map(i => [i.id, i.image, i.link, i.startDate, i.endDate, i.enabled]),
+  });
+
+  // คิว popup ที่จะแสดง (เรียงตามลำดับใน items) — กรอง: เปิดอยู่, มีรูป, อยู่ในช่วงเวลา, ยังไม่เคยกดปิด
+  const queue = useMemo<PopupItem[]>(() => {
+    if (!popup.enabled) return [];
+    const now = new Date();
+    return (popup.items ?? []).filter(item => {
+      if (item.enabled === false || !item.image) return false;
+      if (!isWithinWindow(item, now)) return false;
+      try {
+        if (localStorage.getItem(DISMISS_KEY_PREFIX + hashImage(item.image))) return false;
+      } catch { /* localStorage ปิด — ถือว่ายังไม่ปิด */ }
+      return true;
+    });
+  }, [sig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [pos, setPos] = useState(0);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const { enabled, image, startDate, endDate } = settings.popup ?? {};
-    if (!enabled || !image) { setVisible(false); return; }
-    if (popupKey && localStorage.getItem(popupKey)) { setVisible(false); return; } // เคยกดปิดอันนี้ไปแล้ว ไม่เด้งซ้ำ
-
-    const now = new Date();
-    if (startDate && now < new Date(startDate)) { setVisible(false); return; }
-    if (endDate && now > new Date(endDate)) { setVisible(false); return; }
-
-    const timer = setTimeout(() => setVisible(true), 600);
-    return () => clearTimeout(timer);
-  }, [settings.popup, popupKey]);
+    setPos(0);
+    if (!queue.length) { setVisible(false); return; }
+    const t = setTimeout(() => setVisible(true), 600);
+    return () => clearTimeout(t);
+  }, [queue]);
 
   if (location.pathname === '/admin') return null;
 
+  const current = queue[pos];
+  if (!current) return null;
+
   const close = () => {
-    if (popupKey) localStorage.setItem(popupKey, '1');
-    setVisible(false);
+    try { localStorage.setItem(DISMISS_KEY_PREFIX + hashImage(current.image), '1'); } catch { /* noop */ }
+    if (pos + 1 < queue.length) {
+      // ปิดอันนี้ก่อน แล้วค่อยเด้งอันถัดไป (ให้ exit animation จบก่อน)
+      setVisible(false);
+      setTimeout(() => { setPos(pos + 1); setVisible(true); }, 280);
+    } else {
+      setVisible(false);
+    }
   };
 
-  const handleImageClick = () => openSafeUrl(settings.popup.link);
+  const handleImageClick = () => openSafeUrl(current.link);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {visible && (
         <motion.div
+          key={current.id}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -84,22 +116,27 @@ export default function PopupBanner() {
 
             {/* Image */}
             <div
-              className={`rounded-2xl overflow-hidden shadow-2xl ${settings.popup.link ? 'cursor-pointer' : ''}`}
+              className={`rounded-2xl overflow-hidden shadow-2xl ${current.link ? 'cursor-pointer' : ''}`}
               onClick={handleImageClick}
             >
               <img
-                src={settings.popup.image}
+                src={current.image}
                 alt="ประกาศ"
                 className="w-full h-auto block"
                 loading="lazy"
               />
             </div>
 
-            {settings.popup.link && (
-              <p className="text-center text-white/50 text-xs mt-3">
-                คลิกที่รูปเพื่อดูรายละเอียด
-              </p>
-            )}
+            <div className="flex items-center justify-center gap-3 mt-3">
+              {current.link && (
+                <p className="text-center text-white/50 text-xs">คลิกที่รูปเพื่อดูรายละเอียด</p>
+              )}
+              {queue.length > 1 && (
+                <p className="text-center text-white/40 text-xs font-medium tabular-nums">
+                  {pos + 1} / {queue.length}
+                </p>
+              )}
+            </div>
           </motion.div>
         </motion.div>
       )}

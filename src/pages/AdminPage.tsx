@@ -21,7 +21,7 @@ import {
   subscribeToAdminAccounts, addAdminAccount, updateAdminAccount, deleteAdminAccount,
   seedInitialData, fetchAnalytics,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, Poll, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, Poll, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData, PopupItem } from '../types';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 import ImageUploadField from '../components/ImageUploadField';
 
@@ -254,6 +254,34 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     setSiteSettings(s => ({ ...s, pages: { ...s.pages, [key]: val } }));
   const setPopup = (key: string, val: string | boolean) =>
     setSiteSettings(s => ({ ...s, popup: { ...s.popup, [key]: val } }));
+  const popupItems = (): PopupItem[] => siteSettings.popup.items ?? [];
+  const addPopupItem = () =>
+    setSiteSettings(s => ({
+      ...s,
+      popup: {
+        ...s.popup,
+        items: [...(s.popup.items ?? []), {
+          id: `p_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          image: '', link: '', startDate: '', endDate: '', enabled: true,
+        }],
+      },
+    }));
+  const updatePopupItem = (id: string, key: keyof PopupItem, val: string | boolean) =>
+    setSiteSettings(s => ({
+      ...s,
+      popup: { ...s.popup, items: (s.popup.items ?? []).map(it => (it.id === id ? { ...it, [key]: val } : it)) },
+    }));
+  const removePopupItem = (id: string) =>
+    setSiteSettings(s => ({ ...s, popup: { ...s.popup, items: (s.popup.items ?? []).filter(it => it.id !== id) } }));
+  const movePopupItem = (id: string, dir: -1 | 1) =>
+    setSiteSettings(s => {
+      const items = [...(s.popup.items ?? [])];
+      const i = items.findIndex(it => it.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= items.length) return s;
+      [items[i], items[j]] = [items[j], items[i]];
+      return { ...s, popup: { ...s.popup, items } };
+    });
   const setAbout = (key: string, val: string) =>
     setSiteSettings(s => ({ ...s, about: { ...s.about, [key]: val } }));
   const setPrivacyInfo = (key: string, val: string) =>
@@ -1085,13 +1113,17 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
             {/* Popup Banner */}
             <div className="bg-white/5 border border-white/10 rounded-[32px] p-8">
-              <h2 className="text-xl font-black mb-6 flex items-center gap-2"><span className="text-brand-neon">⑤</span> Popup โปรโมท</h2>
+              <h2 className="text-xl font-black mb-2 flex items-center gap-2"><span className="text-brand-neon">⑤</span> Popup โปรโมท</h2>
+              <p className="text-white/40 text-xs mb-6">
+                ใส่ได้หลายรูป — แสดงเรียงตามลำดับ ผู้เยี่ยมชมปิดอันบนสุดแล้วอันถัดไปเด้งขึ้นมา
+                (แต่ละรูปเด้งครั้งเดียวต่อเครื่อง จนกว่าจะเปลี่ยนรูป)
+              </p>
               <div className="space-y-5">
-                {/* Enable toggle */}
+                {/* Enable toggle (สวิตช์รวม) */}
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold text-sm">เปิดใช้งาน Popup</p>
-                    <p className="text-white/40 text-xs mt-0.5">แสดง popup เมื่อผู้เยี่ยมชมเปิดเว็บ (ครั้งเดียวต่อ session)</p>
+                    <p className="text-white/40 text-xs mt-0.5">ปิดสวิตช์นี้ = ไม่แสดง popup ทุกอัน</p>
                   </div>
                   <button
                     type="button"
@@ -1102,52 +1134,94 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </button>
                 </div>
 
-                {/* Image upload */}
-                <div>
-                  <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ Popup — แนะนำแนวตั้งหรือจัตุรัส เช่น 800×1000px ไม่เกิน 5MB</label>
-                  <ImageUploadField value={siteSettings.popup.image || ''} onChange={v => setPopup('image', v)} label="Popup" />
-                </div>
+                {/* รายการ popup */}
+                {popupItems().length === 0 && (
+                  <p className="text-white/30 text-sm py-4 text-center border border-dashed border-white/10 rounded-xl">
+                    ยังไม่มี popup — กด "เพิ่ม Popup" ด้านล่าง
+                  </p>
+                )}
 
-                {/* Link */}
-                <div>
-                  <label className="block text-xs font-bold text-white/50 mb-1">ลิงก์ (เมื่อคลิกที่รูป — ไม่บังคับ)</label>
-                  <input type="url" value={siteSettings.popup.link}
-                    onChange={e => setPopup('link', e.target.value)}
-                    placeholder="https://..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
-                </div>
-
-                {/* Date range */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-white/50 mb-1">วันที่เริ่มแสดง</label>
-                    <input type="datetime-local" value={siteSettings.popup.startDate}
-                      onChange={e => setPopup('startDate', e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
-                    <p className="text-white/30 text-xs mt-1">เว้นว่างไว้ = แสดงทันที</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-white/50 mb-1">วันที่หยุดแสดง</label>
-                    <input type="datetime-local" value={siteSettings.popup.endDate}
-                      onChange={e => setPopup('endDate', e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
-                    <p className="text-white/30 text-xs mt-1">เว้นว่างไว้ = แสดงตลอด</p>
-                  </div>
-                </div>
-
-{/* Status badge */}
-                {siteSettings.popup.enabled && siteSettings.popup.image && (() => {
+                {popupItems().map((item, idx) => {
                   const now = new Date();
-                  const start = siteSettings.popup.startDate ? new Date(siteSettings.popup.startDate) : null;
-                  const end = siteSettings.popup.endDate ? new Date(siteSettings.popup.endDate) : null;
-                  const active = (!start || now >= start) && (!end || now <= end);
+                  const start = item.startDate ? new Date(item.startDate) : null;
+                  const end = item.endDate ? new Date(item.endDate) : null;
+                  const inWindow = (!start || now >= start) && (!end || now <= end);
+                  const off = item.enabled === false;
+                  const status = off ? 'ปิดอยู่'
+                    : !item.image ? 'ยังไม่มีรูป'
+                    : inWindow ? 'พร้อมแสดง' : 'นอกช่วงเวลา';
+                  const statusOk = !off && item.image && inWindow;
                   return (
-                    <div className={`flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl border ${active ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-white/40'}`}>
-                      <span className={`w-2 h-2 rounded-full ${active ? 'bg-green-400' : 'bg-white/30'}`} />
-                      {active ? 'Popup กำลังแสดงอยู่' : 'Popup ยังไม่ถึงเวลา หรือหมดเวลาแล้ว'}
+                    <div key={item.id} className={`border rounded-2xl p-5 space-y-4 ${off ? 'border-white/5 bg-white/[0.02] opacity-60' : 'border-white/10 bg-white/[0.03]'}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-brand-neon">Popup {idx + 1}</span>
+                          <span className={`flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full border ${statusOk ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-white/5 border-white/10 text-white/40'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusOk ? 'bg-green-400' : 'bg-white/30'}`} />
+                            {status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button type="button" title="เลื่อนขึ้น" disabled={idx === 0}
+                            onClick={() => movePopupItem(item.id, -1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-colors">
+                            <ChevronUp size={15} />
+                          </button>
+                          <button type="button" title="เลื่อนลง" disabled={idx === popupItems().length - 1}
+                            onClick={() => movePopupItem(item.id, 1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-colors">
+                            <ChevronDown size={15} />
+                          </button>
+                          <button type="button" title={off ? 'เปิดใช้' : 'ปิดชั่วคราว'}
+                            onClick={() => updatePopupItem(item.id, 'enabled', off)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                            {off ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                          <button type="button" title="ลบ"
+                            onClick={() => removePopupItem(item.id)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-2">รูปภาพ — แนะนำแนวตั้งหรือจัตุรัส เช่น 800×1000px ไม่เกิน 5MB</label>
+                        <ImageUploadField value={item.image || ''} onChange={v => updatePopupItem(item.id, 'image', v)} label={`Popup ${idx + 1}`} />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">ลิงก์ (เมื่อคลิกที่รูป — ไม่บังคับ)</label>
+                        <input type="url" value={item.link || ''}
+                          onChange={e => updatePopupItem(item.id, 'link', e.target.value)}
+                          placeholder="https://..."
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">วันที่เริ่มแสดง</label>
+                          <input type="datetime-local" value={item.startDate || ''}
+                            onChange={e => updatePopupItem(item.id, 'startDate', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+                          <p className="text-white/30 text-xs mt-1">เว้นว่าง = แสดงทันที</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">วันที่หยุดแสดง</label>
+                          <input type="datetime-local" value={item.endDate || ''}
+                            onChange={e => updatePopupItem(item.id, 'endDate', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+                          <p className="text-white/30 text-xs mt-1">เว้นว่าง = แสดงตลอด</p>
+                        </div>
+                      </div>
                     </div>
                   );
-                })()}
+                })}
+
+                <button type="button" onClick={addPopupItem}
+                  className="w-full flex items-center justify-center gap-2 border border-dashed border-white/15 hover:border-brand-neon/50 hover:bg-white/5 text-white/60 hover:text-white text-sm font-bold py-3 rounded-xl transition-colors">
+                  <Plus size={16} /> เพิ่ม Popup
+                </button>
               </div>
             </div>
 

@@ -104,12 +104,24 @@ export interface AdminAccount extends AuditFields {
   allowedTabs: string[];
 }
 
-export interface PopupSettings {
-  enabled: boolean;
+/** popup 1 รูปในคิว — แสดงเรียงตามลำดับใน items[] ปิดอันหนึ่งแล้วอันถัดไปเด้ง */
+export interface PopupItem {
+  id: string;
   image: string;
-  link: string;
-  startDate: string;
-  endDate: string;
+  link?: string;
+  startDate?: string;
+  endDate?: string;
+  enabled?: boolean; // undefined/true = เปิด
+}
+
+export interface PopupSettings {
+  enabled: boolean;          // สวิตช์รวม — ปิดแล้วไม่แสดง popup เลย
+  items: PopupItem[];
+  // ฟิลด์เดิม (popup เดียว) — เก็บไว้เพื่อ backward-compat; mergeSettings จะ migrate เข้า items[] ให้
+  image?: string;
+  link?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 /** ปรับขนาด/สี/เปิดปิดของข้อความแต่ละชิ้นใน Hero — ไม่ตั้งค่า = ใช้ค่า default เดิมของ element นั้น */
@@ -213,6 +225,7 @@ export interface SiteSettings {
 export const DEFAULT_SETTINGS: SiteSettings = {
   popup: {
     enabled: false,
+    items: [],
     image: '',
     link: '',
     startDate: '',
