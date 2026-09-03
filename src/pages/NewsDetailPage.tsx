@@ -7,6 +7,7 @@ import { NewsItem } from '../types';
 import { NEWS as FALLBACK } from '../constants';
 import { SkeletonBox } from '../components/Skeleton';
 import YouTubeEmbed from '../components/YouTubeEmbed';
+import ShareButtons from '../components/ShareButtons';
 
 export default function NewsDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -88,13 +89,16 @@ export default function NewsDetailPage() {
           )}
 
           {/* Meta */}
-          <div className="flex flex-wrap items-center gap-4 mb-8">
-            <span className="bg-brand-neon text-brand-navy text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest flex items-center gap-1.5">
-              <Tag size={12} /> {article.category}
-            </span>
-            <span className="text-white/40 text-sm flex items-center gap-1.5">
-              <Calendar size={14} /> {article.date}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="bg-brand-neon text-brand-navy text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest flex items-center gap-1.5">
+                <Tag size={12} /> {article.category}
+              </span>
+              <span className="text-white/40 text-sm flex items-center gap-1.5">
+                <Calendar size={14} /> {article.date}
+              </span>
+            </div>
+            <ShareButtons title={article.title} label="" />
           </div>
 
           {/* Title */}
@@ -119,8 +123,13 @@ export default function NewsDetailPage() {
             {article.content}
           </div>
 
+          {/* Share */}
+          <div className="mt-12 pt-8 border-t border-white/10">
+            <ShareButtons title={article.title} label="แชร์บทความนี้:" />
+          </div>
+
           {/* Back */}
-          <div className="mt-16 pt-10 border-t border-white/10">
+          <div className="mt-10 pt-10 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
             <Link to="/news" className="outline-button">
               <ArrowLeft size={18} /> ดูข่าวสารทั้งหมด
             </Link>
