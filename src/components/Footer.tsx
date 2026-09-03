@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Facebook, Twitter, Instagram, Youtube, Mail, MapPin, Phone } from 'lucide-react';
-import { subscribeToSiteSettings } from '../services/dataService';
+import { Facebook, Twitter, Instagram, Youtube, Mail, MapPin, Phone, Send, Check, UserPlus } from 'lucide-react';
+import { subscribeToSiteSettings, addNewsletterSubscriber } from '../services/dataService';
 import { SiteSettings, DEFAULT_SETTINGS } from '../types';
 import { isSafeHttpUrl } from '../utils/safeUrl';
+import Honeypot from './Honeypot';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export default function Footer() {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+  const [email, setEmail] = useState('');
+  const [website, setWebsite] = useState(''); // honeypot
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeToSiteSettings(setSettings);
@@ -15,56 +22,81 @@ export default function Footer() {
 
   const { contact, footer } = settings;
 
+  const subscribe = async () => {
+    if (!email || !EMAIL_RE.test(email)) return;
+    setLoading(true);
+    try {
+      await addNewsletterSubscriber(email, website);
+      setSent(true);
+      setEmail('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <footer className="bg-black/40 border-t border-white/10 pt-20 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-          <div className="col-span-1 md:col-span-1">
+          {/* Brand */}
+          <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-6">
               <img src="/tkm-logo.png" alt="ไทยก้าวใหม่" className="h-12 w-auto" loading="lazy" />
             </Link>
-            <p className="text-white/50 text-sm leading-relaxed mb-6">
+            <p className="text-white/50 text-sm leading-relaxed mb-6 max-w-md">
               {footer.description}
             </p>
             <div className="flex gap-4">
-              <a href={isSafeHttpUrl(contact.facebook) ? contact.facebook : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.facebook) ? contact.facebook : '#'} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Facebook size={18} />
               </a>
-              <a href={isSafeHttpUrl(contact.twitter) ? contact.twitter : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.twitter) ? contact.twitter : '#'} target="_blank" rel="noopener noreferrer" aria-label="Twitter / X" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Twitter size={18} />
               </a>
-              <a href={isSafeHttpUrl(contact.instagram) ? contact.instagram : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.instagram) ? contact.instagram : '#'} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Instagram size={18} />
               </a>
-              <a href={isSafeHttpUrl(contact.youtube) ? contact.youtube : '#'} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
+              <a href={isSafeHttpUrl(contact.youtube) ? contact.youtube : '#'} target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center hover:bg-brand-neon hover:text-brand-navy transition-all">
                 <Youtube size={18} />
               </a>
             </div>
           </div>
 
+          {/* Newsletter + สมัครสมาชิก */}
           <div>
-            <h4 className="font-bold mb-6">เมนูหลัก</h4>
-            <ul className="space-y-4 text-sm text-white/50">
-              <li><Link to="/" className="hover:text-brand-neon transition-colors">หน้าหลัก</Link></li>
-              <li><Link to="/about" className="hover:text-brand-neon transition-colors">เกี่ยวกับพรรค</Link></li>
-              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">นโยบาย</Link></li>
-              <li><Link to="/team" className="hover:text-brand-neon transition-colors">ทีมพรรค</Link></li>
-              <li><Link to="/news" className="hover:text-brand-neon transition-colors">ข่าวสาร</Link></li>
-              <li><Link to="/volunteer" className="hover:text-brand-neon transition-colors">อาสาสมัคร</Link></li>
-              <li><Link to="/contact" className="hover:text-brand-neon transition-colors">ติดต่อ</Link></li>
-            </ul>
+            <h4 className="font-bold mb-6">ติดตามข่าวสาร</h4>
+            {sent ? (
+              <p className="text-brand-neon text-sm font-bold flex items-center gap-2">
+                <Check size={16} /> สมัครรับข่าวสารแล้ว ขอบคุณ!
+              </p>
+            ) : (
+              <form onSubmit={e => { e.preventDefault(); subscribe(); }} className="space-y-3">
+                <Honeypot value={website} onChange={setWebsite} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="อีเมลของคุณ"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-brand-neon transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="neon-button w-full justify-center text-sm py-2.5 disabled:opacity-50"
+                >
+                  {loading ? 'กำลังส่ง...' : (<>รับข่าวสาร <Send size={15} /></>)}
+                </button>
+              </form>
+            )}
+            <Link
+              to="/register"
+              className="mt-5 inline-flex items-center gap-2 text-brand-neon text-sm font-bold hover:gap-3 transition-all"
+            >
+              <UserPlus size={15} /> สมัครสมาชิกพรรค
+            </Link>
           </div>
 
-          <div>
-            <h4 className="font-bold mb-6">ธนู 4 ดอก</h4>
-            <ul className="space-y-4 text-sm text-white/50">
-              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างคนใหม่ พลิกโฉมการศึกษา</Link></li>
-              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างเศรษฐกิจก้าวใหม่</Link></li>
-              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างคุณภาพชีวิตใหม่</Link></li>
-              <li><Link to="/policies" className="hover:text-brand-neon transition-colors">สร้างค่านิยมใหม่</Link></li>
-            </ul>
-          </div>
-
+          {/* Contact */}
           <div>
             <h4 className="font-bold mb-6">ติดต่อพรรค</h4>
             <ul className="space-y-4 text-sm text-white/50">
