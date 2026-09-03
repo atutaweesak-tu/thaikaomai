@@ -26,7 +26,33 @@
 }
 
 .bento-card {
-  @apply bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all duration-300;
+  @apply bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300;
+}
+.bento-card:hover {
+  box-shadow: 0 12px 40px -12px rgba(230, 255, 0, 0.18);
+}
+
+/* Ken Burns — ซูม/แพนช้าๆ ให้ hero มีชีวิต (ใช้กับรูป hero เท่านั้น) */
+@keyframes kenburns {
+  0%   { transform: scale(1) translate(0, 0); }
+  100% { transform: scale(1.08) translate(-1.5%, -1%); }
+}
+/* เดสก์ท็อปเท่านั้น — มือถือรูป hero เป็น object-contain + base64 ใหญ่ ไม่ต้องขยับ */
+@media (min-width: 768px) {
+  .animate-kenburns {
+    animation: kenburns 24s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+}
+
+/* เคารพผู้ใช้ที่ตั้งค่าลดการเคลื่อนไหว — ปิด animation/transition ทั้งหมด */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .neon-button {

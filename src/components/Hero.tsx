@@ -127,7 +127,7 @@ export default function Hero() {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.8 }}
         onClick={currentSlide.link ? handleSlideClick : undefined}
-        className={`absolute inset-0 w-full h-full ${isImageOnly ? imageOnlyObjectFit : 'object-cover'} ${currentSlide.link ? 'cursor-pointer' : ''}`}
+        className={`absolute inset-0 w-full h-full ${isImageOnly ? `${imageOnlyObjectFit} animate-kenburns` : 'object-cover'} ${currentSlide.link ? 'cursor-pointer' : ''}`}
         referrerPolicy="no-referrer"
       />
     </AnimatePresence>
