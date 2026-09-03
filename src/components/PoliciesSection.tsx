@@ -31,7 +31,7 @@ export default function PoliciesSection() {
   const homePolices = featured.length > 0 ? featured : visiblePolicies.slice(0, 4);
 
   return (
-    <section className="py-24 bg-[var(--surface-section)]">
+    <section className="py-24 border-t border-white/10 bg-[var(--surface-section)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
           <div className="max-w-2xl">

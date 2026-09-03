@@ -18,14 +18,14 @@ export default function CTASection() {
   const { cta } = settings;
 
   return (
-    <section className="py-20">
+    <section className="py-20 border-t border-white/10">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="border-t border-white/10 pt-16 text-center"
+          className="pt-16 text-center"
         >
           <SectionEyebrow className="justify-center">ร่วมกับเรา</SectionEyebrow>
           <h2 className="text-3xl md:text-5xl font-black tracking-tighter leading-[1.15] mb-4">
