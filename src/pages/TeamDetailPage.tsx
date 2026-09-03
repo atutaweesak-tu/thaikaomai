@@ -6,6 +6,7 @@ import { subscribeToTeam } from '../services/dataService';
 import { TeamMember } from '../types';
 import { TEAM as FALLBACK } from '../constants';
 import { SkeletonBox } from '../components/Skeleton';
+import ShareButtons from '../components/ShareButtons';
 
 const CATEGORY_LABEL: Record<TeamMember['category'], string> = {
   chairman: 'ประธานพรรค',
@@ -115,8 +116,13 @@ export default function TeamDetailPage() {
             <p className="text-white/30 text-base">ยังไม่มีข้อมูลประวัติเพิ่มเติม</p>
           )}
 
+          {/* Share */}
+          <div className="mt-12 pt-8 border-t border-white/10">
+            <ShareButtons title={`${member.name} — ${member.role}`} label="แชร์โปรไฟล์นี้:" />
+          </div>
+
           {/* Back */}
-          <div className="mt-16 pt-10 border-t border-white/10">
+          <div className="mt-10">
             <Link to="/team" className="outline-button">
               <ArrowLeft size={18} /> ดูทีมพรรคทั้งหมด
             </Link>
