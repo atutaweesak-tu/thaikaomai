@@ -211,6 +211,9 @@ export default function NewsPage() {
                         <div className="flex items-center gap-3 text-brand-neon font-bold text-sm mb-4">
                           <Calendar size={16} />
                           <span>{event.date}</span>
+                          {!event.startAt && (
+                            <span className="text-[11px] font-bold text-brand-neon/80 bg-brand-neon/10 px-2 py-0.5 rounded-full">รอกำหนดการ</span>
+                          )}
                         </div>
                         <Link to={`/events/${event.id}`} className="block">
                           <h4 className="text-xl font-bold mb-4 tracking-tight group-hover:text-brand-neon transition-colors">{event.title}</h4>

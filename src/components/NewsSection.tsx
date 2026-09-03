@@ -123,6 +123,11 @@ export default function NewsSection() {
                             <span className="text-lg font-black">{d2}</span>
                           </div>
                           <div>
+                            {!event.startAt && (
+                              <span className="inline-block text-[11px] font-bold text-brand-neon/80 bg-brand-neon/10 px-2 py-0.5 rounded-full mb-2">
+                                รอกำหนดการ
+                              </span>
+                            )}
                             <h4 className="font-bold text-lg mb-3 group-hover:text-brand-neon transition-colors">
                               {event.title}
                             </h4>

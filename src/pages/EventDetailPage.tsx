@@ -55,6 +55,7 @@ export default function EventDetailPage() {
   if (!event) return null;
 
   const past = event.startAt ? new Date(event.startAt).getTime() < Date.now() : false;
+  const tba = !event.startAt;
 
   return (
     <main className="pt-32 pb-24">
@@ -72,8 +73,8 @@ export default function EventDetailPage() {
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-            <span className={`text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest ${past ? 'bg-white/10 text-white/50' : 'bg-brand-neon text-brand-navy'}`}>
-              {past ? 'กิจกรรมที่ผ่านมา' : 'กิจกรรมที่จะถึง'}
+            <span className={`text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest ${past ? 'bg-white/10 text-white/50' : tba ? 'bg-brand-neon/15 text-brand-neon' : 'bg-brand-neon text-brand-navy'}`}>
+              {past ? 'กิจกรรมที่ผ่านมา' : tba ? 'รอกำหนดการ' : 'กิจกรรมที่จะถึง'}
             </span>
             <ShareButtons title={event.title} label="" />
           </div>
