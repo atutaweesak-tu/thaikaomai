@@ -5,6 +5,7 @@ import { Calendar, MapPin, Clock, ArrowRight, Newspaper } from 'lucide-react';
 import { NEWS as FALLBACK_NEWS, EVENTS as FALLBACK_EVENTS } from '../constants';
 import { subscribeToNews, subscribeToEvents } from '../services/dataService';
 import { NewsItem, EventItem } from '../types';
+import { upcomingEvents, dateBadgeParts } from '../utils/events';
 
 export default function NewsSection() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -32,13 +33,7 @@ export default function NewsSection() {
     return true;
   });
 
-  const visibleEvents = events.filter(ev => {
-    if (ev.published === false) return false;
-    const now = new Date();
-    if (ev.publishAt && new Date(ev.publishAt) > now) return false;
-    if (ev.unpublishAt && new Date(ev.unpublishAt) < now) return false;
-    return true;
-  });
+  const visibleEvents = upcomingEvents(events);
 
   return (
     <section className="py-24 bg-black/20">
@@ -108,37 +103,50 @@ export default function NewsSection() {
               
               {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap เหมือนการ์ดข่าวด้านบน — ห่อการ์ดแต่ละ event ด้วย
                   กรอบบางๆ ให้เห็นขอบเขตตอนเลื่อน ส่วนจอ md ขึ้นไปกลับไปเป็น list แนวตั้งแบบเดิม */}
-              <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block md:space-y-8 md:overflow-visible md:pb-0">
-                {visibleEvents.map((event) => (
-                  <div key={event.id} className="group cursor-pointer shrink-0 w-[80%] snap-center bg-white/5 border border-white/10 rounded-3xl p-5 md:w-auto md:shrink md:bg-transparent md:border-0 md:rounded-none md:p-0">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-brand-neon rounded-2xl flex flex-col items-center justify-center text-brand-navy shrink-0">
-                        <span className="text-xs font-black leading-none">{event.date.split(' ')[0]}</span>
-                        <span className="text-lg font-black leading-none">{event.date.split(' ')[1]?.replace(',', '') || ''}</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-lg mb-3 group-hover:text-brand-neon transition-colors">
-                          {event.title}
-                        </h4>
-                        <div className="space-y-2 text-sm text-white/40">
-                          <div className="flex items-center gap-2">
-                            <MapPin size={14} className="text-brand-neon" />
-                            <span>{event.location}</span>
+              {visibleEvents.length === 0 ? (
+                <p className="text-white/40 text-sm leading-relaxed py-6">
+                  ยังไม่มีกิจกรรมที่กำหนดการในขณะนี้ — ติดตามประกาศจากพรรคเร็วๆ นี้
+                </p>
+              ) : (
+                <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block md:space-y-8 md:overflow-visible md:pb-0">
+                  {visibleEvents.map((event) => {
+                    const [d1, d2] = dateBadgeParts(event.date);
+                    return (
+                      <Link
+                        key={event.id}
+                        to={`/events/${event.id}`}
+                        className="group block shrink-0 w-[80%] snap-center bg-white/5 border border-white/10 rounded-3xl p-5 md:w-auto md:shrink md:bg-transparent md:border-0 md:rounded-none md:p-0 hover:md:bg-white/5 md:hover:p-4 md:hover:rounded-2xl transition-all"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-brand-neon rounded-2xl flex flex-col items-center justify-center text-brand-navy shrink-0 leading-none text-center px-1">
+                            <span className="text-xs font-black">{d1}</span>
+                            <span className="text-lg font-black">{d2}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Clock size={14} className="text-brand-neon" />
-                            <span>{event.time}</span>
+                          <div>
+                            <h4 className="font-bold text-lg mb-3 group-hover:text-brand-neon transition-colors">
+                              {event.title}
+                            </h4>
+                            <div className="space-y-2 text-sm text-white/40">
+                              <div className="flex items-center gap-2">
+                                <MapPin size={14} className="text-brand-neon" />
+                                <span>{event.location}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Clock size={14} className="text-brand-neon" />
+                                <span>{event.time}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
 
-              <button className="neon-button w-full justify-center mt-12">
-                เข้าร่วมกิจกรรม
-              </button>
+              <Link to="/news" className="neon-button w-full justify-center mt-12">
+                ดูกิจกรรมทั้งหมด
+              </Link>
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ import { NewsItem, EventItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory } fro
 import { NewsCardSkeleton } from '../components/Skeleton';
 import Honeypot from '../components/Honeypot';
 import YouTubeEmbed from '../components/YouTubeEmbed';
+import { upcomingEvents } from '../utils/events';
 
 export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -43,13 +44,7 @@ export default function NewsPage() {
     return true;
   });
 
-  const visibleEvents = events.filter(ev => {
-    if (ev.published === false) return false;
-    const now = new Date();
-    if (ev.publishAt && new Date(ev.publishAt) > now) return false;
-    if (ev.unpublishAt && new Date(ev.unpublishAt) < now) return false;
-    return true;
-  });
+  const visibleEvents = upcomingEvents(events);
 
   // แสดง chip เฉพาะหมวดที่มีข่าวจริง เรียงตาม order ที่ตั้งไว้ในหน้า admin
   const usedCategoryNames = new Set(visibleNews.map(n => n.category));
@@ -204,35 +199,46 @@ export default function NewsPage() {
           <div className="lg:col-span-1">
             <div className="sticky top-32 space-y-12">
               <div>
-                <h3 className="text-2xl font-black tracking-tighter mb-8 uppercase">กิจกรรมที่กำลังจะมาถึง</h3>
-                <div className="space-y-6">
-                  {visibleEvents.map((event) => (
-                    <div key={event.id} className="bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 transition-all">
-                      <div className="flex items-center gap-3 text-brand-neon font-bold text-sm mb-4">
-                        <Calendar size={16} />
-                        <span>{event.date}</span>
-                      </div>
-                      <h4 className="text-xl font-bold mb-4 tracking-tight">{event.title}</h4>
-                      <div className="space-y-2 text-sm text-white/40">
-                        <div className="flex items-center gap-2">
-                          <MapPin size={14} />
-                          <span>{event.location}</span>
+                <h3 className="text-2xl font-black tracking-tighter mb-8">กิจกรรมที่กำลังจะมาถึง</h3>
+                {visibleEvents.length === 0 ? (
+                  <p className="text-white/40 text-sm leading-relaxed">
+                    ยังไม่มีกิจกรรมที่กำหนดการในขณะนี้ — ติดตามประกาศจากพรรคเร็วๆ นี้
+                  </p>
+                ) : (
+                  <div className="space-y-6">
+                    {visibleEvents.map((event) => (
+                      <div key={event.id} className="group bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 hover:border-brand-neon/30 transition-all">
+                        <div className="flex items-center gap-3 text-brand-neon font-bold text-sm mb-4">
+                          <Calendar size={16} />
+                          <span>{event.date}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Clock size={14} />
-                          <span>{event.time}</span>
+                        <Link to={`/events/${event.id}`} className="block">
+                          <h4 className="text-xl font-bold mb-4 tracking-tight group-hover:text-brand-neon transition-colors">{event.title}</h4>
+                        </Link>
+                        <div className="space-y-2 text-sm text-white/40">
+                          <div className="flex items-center gap-2">
+                            <MapPin size={14} />
+                            <span>{event.location}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock size={14} />
+                            <span>{event.time}</span>
+                          </div>
                         </div>
+                        {event.videoUrl && (
+                          <YouTubeEmbed url={event.videoUrl} title={event.title} className="mt-4" />
+                        )}
+                        <Link to={`/events/${event.id}`} className="inline-flex items-center gap-1.5 text-brand-neon text-sm font-bold mt-4 hover:gap-3 transition-all">
+                          ดูรายละเอียด <span aria-hidden>→</span>
+                        </Link>
                       </div>
-                      {event.videoUrl && (
-                        <YouTubeEmbed url={event.videoUrl} title={event.title} className="mt-4" />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="bg-brand-neon rounded-[40px] p-8 text-brand-navy">
-                <h3 className="text-2xl font-black tracking-tighter mb-4">NEWSLETTER</h3>
+                <h3 className="text-2xl font-black tracking-tighter mb-4">รับข่าวสาร</h3>
                 <p className="text-brand-navy/70 text-sm font-medium mb-6">รับข่าวสารล่าสุดตรงถึงอีเมลของคุณ</p>
                 {newsletterStatus === 'sent' ? (
                   <p className="font-black text-center py-4">สมัครสำเร็จ! ขอบคุณ</p>

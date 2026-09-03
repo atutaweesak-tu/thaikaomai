@@ -54,9 +54,14 @@ export interface NewsItem extends AuditFields {
 export interface EventItem extends AuditFields {
   id: string;
   title: string;
-  date: string;
+  date: string;            // ข้อความแสดงผล เช่น "22 ส.ค." หรือ "เมษายน 2569"
   location: string;
-  time: string;
+  time: string;            // ข้อความแสดงผล เช่น "13.00 - 17.00 น." หรือ "ติดตามประกาศจากพรรค"
+  startAt?: string;        // ISO datetime — ใช้กรอง "ที่ยังมาไม่ถึง" + เรียงลำดับ (ไม่มี = รอกำหนดการ)
+  content?: string;        // รายละเอียดกิจกรรม
+  image?: string;
+  registerUrl?: string;    // ลิงก์ลงทะเบียนเข้าร่วม (ไม่บังคับ)
+  mapUrl?: string;         // ลิงก์แผนที่สถานที่ (ไม่บังคับ)
   published?: boolean;
   publishAt?: string;
   unpublishAt?: string;

@@ -20,6 +20,7 @@ const TeamPage = lazy(() => import('./pages/TeamPage'));
 const TeamDetailPage = lazy(() => import('./pages/TeamDetailPage'));
 const NewsPage = lazy(() => import('./pages/NewsPage'));
 const NewsDetailPage = lazy(() => import('./pages/NewsDetailPage'));
+const EventDetailPage = lazy(() => import('./pages/EventDetailPage'));
 const PollsPage = lazy(() => import('./pages/PollsPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const VolunteerPage = lazy(() => import('./pages/VolunteerPage'));
@@ -52,6 +53,7 @@ export default function App() {
                   <Route path="/team/:id" element={<TeamDetailPage />} />
                   <Route path="/news" element={<NewsPage />} />
                   <Route path="/news/:id" element={<NewsDetailPage />} />
+                  <Route path="/events/:id" element={<EventDetailPage />} />
                   <Route path="/polls" element={<PollsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/volunteer" element={<VolunteerPage />} />
