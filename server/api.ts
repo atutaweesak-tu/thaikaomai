@@ -25,9 +25,9 @@ const _rateMap = new Map<string, { count: number; resetAt: number }>();
 // ที่ปลอมไม่ได้แทน — nginx/Caddy ต้องตั้ง proxy_set_header X-Real-IP $remote_addr;
 // (ค่าเดียว ไม่ append ต่อ จึงเชื่อได้ตรงไปตรงมากว่า X-Forwarded-For ที่บาง config
 // อาจแค่ append ต่อท้ายค่าที่ client ปลอมมาโดยไม่ทับ)
-const TRUSTED_PROXY_IP = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|::ffff:127\.|::ffff:10\.|::ffff:192\.168\.|::ffff:172\.(1[6-9]|2\d|3[01])\.)/;
+export const TRUSTED_PROXY_IP = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|::ffff:127\.|::ffff:10\.|::ffff:192\.168\.|::ffff:172\.(1[6-9]|2\d|3[01])\.)/;
 
-function getClientIp(req: IncomingMessage): string {
+export function getClientIp(req: IncomingMessage): string {
   const remote = req.socket?.remoteAddress || '';
   if (!TRUSTED_PROXY_IP.test(remote)) return remote || 'unknown'; // ต่อตรง ไม่ผ่าน proxy ที่เชื่อถือได้ — ห้ามเชื่อ header ใดๆ
 

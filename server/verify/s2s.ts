@@ -4,6 +4,7 @@
 import type { IncomingMessage } from 'http';
 import type { VerifyConfig } from './config';
 import { signS2S, timingSafeEqualHex, randomToken } from './crypto';
+import { getClientIp } from '../api';
 
 const MAX_SKEW_MS = 5 * 60 * 1000;
 
@@ -19,15 +20,10 @@ function rememberNonce(nonce: string): boolean {
   return true;
 }
 
-export function clientIp(req: IncomingMessage): string {
-  const xf = req.headers['x-forwarded-for'];
-  const xff = Array.isArray(xf) ? xf[0] : xf;
-  if (xff) {
-    const parts = xff.split(',').map(s => s.trim()).filter(Boolean);
-    if (parts.length) return parts[parts.length - 1];
-  }
-  return req.socket?.remoteAddress || 'unknown';
-}
+// เดิมเชื่อ X-Forwarded-For ตรงๆ จาก client — ปลอมได้ ทำให้ allowedS2sIps บายพาสได้
+// ตอนนี้ใช้ logic เดียวกับ api.ts: เชื่อ header เฉพาะตอน connection มาจาก proxy
+// ที่เชื่อถือได้ (private/loopback) เท่านั้น
+export const clientIp = getClientIp;
 
 export interface S2SVerifyResult {
   ok: boolean;
