@@ -43,6 +43,23 @@ VERIFY_FIELD_KEY=<ค่าเดิม> VERIFY_S2S_SECRET=<ค่าเดิ�
 นอก VPS นี้ทันที เช่นแบ่งเก็บใน password manager ของกรรมการพรรค 2-3 คน — ไฟล์นี้กู้ Vault
 กลับมาได้ทั้งหมดถ้าเครื่องมีปัญหา และเป็นกุญแจเดียวที่ unseal Vault ได้หลัง container restart
 
+## ปัญหาที่เจอจริงตอน deploy ครั้งแรก (2026-09-10) + วิธีแก้
+
+1. **`init` ล้มเหลว: `mkdir /vault/data/core: permission denied`** — named volume
+   `vault-data` ถูกสร้างเป็นเจ้าของ `root:root` โดย Docker แต่ Vault process รันเป็น
+   uid 100 (`vault`) ไม่ใช่ root แก้ด้วย:
+   ```sh
+   docker exec -u root thaikaomai-vault chown -R vault:vault /vault/data
+   ```
+   รันครั้งเดียวหลัง `docker compose up -d` ครั้งแรก ก่อนรัน `setup-approle.sh`
+
+2. **อ่าน secret ได้ `403` แม้ AppRole login ผ่านแล้ว** — `vault kv put`/`vault kv get`
+   (CLI) แปลง path `secret/thaikaomai/verify` เป็น `secret/data/thaikaomai/verify`
+   ให้อัตโนมัติ แต่ **policy engine ไม่แปลงให้** ต้องเขียน path ใน policy เป็น
+   `secret/data/...` ตรง ๆ (มี `/data/`) ไม่งั้น token ที่ได้จาก AppRole จะไม่มีสิทธิ์อ่าน
+   จริงแม้ policy จะ "ดูเหมือน" ครอบคลุม path เดียวกัน — `setup-approle.sh` แก้ไขจุดนี้แล้ว
+   (แยก `KV_PATH` สำหรับ CLI กับ `KV_API_PATH` สำหรับ policy)
+
 ## หลัง restart VPS/container
 
 Vault ใช้ storage backend แบบ `file` (ไม่ใช่ในหน่วยความจำ) — restart container แล้วข้อมูล

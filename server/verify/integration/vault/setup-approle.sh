@@ -19,7 +19,11 @@
 set -e
 
 VAULT_CONTAINER=thaikaomai-vault
-KV_PATH=secret/thaikaomai/verify   # KV v2 mount "secret/" + path "thaikaomai/verify"
+KV_PATH=secret/thaikaomai/verify           # ใช้กับ `vault kv put/get` เท่านั้น — CLI แปลง
+                                            # เป็น secret/data/... ให้เองตอนคุยกับ KV v2
+KV_API_PATH=secret/data/thaikaomai/verify  # raw HTTP API path จริง (ที่ vaultClient.ts เรียกตรง ๆ)
+                                            # — policy engine ไม่ auto-translate ให้เหมือน CLI
+                                            # ต้องเขียน path นี้ใน policy ตรง ๆ ไม่งั้นได้ 403
 POLICY_NAME=thaikaomai-verify-read
 ROLE_NAME=thaikaomai-verify
 
@@ -72,7 +76,7 @@ vexecT vault kv put "$KV_PATH" \
 
 echo "=== 5) policy อ่านอย่างเดียว เฉพาะ path นี้ ==="
 cat <<POLICY | vexecT vault policy write "$POLICY_NAME" -
-path "$KV_PATH" {
+path "$KV_API_PATH" {
   capabilities = ["read"]
 }
 POLICY

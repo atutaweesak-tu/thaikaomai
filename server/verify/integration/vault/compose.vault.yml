@@ -11,10 +11,23 @@
 #   sh setup-approle.sh   (ครั้งแรกครั้งเดียว — init, unseal, เขียน secret, สร้าง AppRole)
 # ─────────────────────────────────────────────────────────────────────────────
 services:
+  # named volume ใหม่ถูกสร้างเป็นเจ้าของ root:root โดย Docker เสมอ แต่ vault process
+  # ในอิมเมจรันเป็น uid 100 (ไม่ใช่ root) — ไม่ chown ก่อน จะ init ไม่ขึ้น
+  # (mkdir /vault/data/core: permission denied) — รันครั้งเดียวตอน volume ยังว่างแล้วจบ
+  vault-data-init:
+    image: hashicorp/vault:1.18
+    user: root
+    volumes:
+      - vault-data:/vault/data
+    entrypoint: ["chown", "-R", "100:1000", "/vault/data"]
+
   vault:
     image: hashicorp/vault:1.18
     container_name: thaikaomai-vault
     restart: unless-stopped
+    depends_on:
+      vault-data-init:
+        condition: service_completed_successfully
     cap_add:
       - IPC_LOCK
     volumes:
