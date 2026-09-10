@@ -1,0 +1,35 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ก้อน G — Vault (secret manager) เป็น stack แยกต่างหากบน VPS เดียวกัน
+#
+# เหตุผลที่แยก compose ไม่รวมเข้า compose.vps.yml ของเว็บใหม่: Vault เป็น infra
+# ที่ broker (repo นี้, /opt/thaikaomai-new) และ api (อีก repo, /opt/thaikaomai)
+# ต้องใช้ร่วมกัน ไม่ใช่ของเว็บใดเว็บหนึ่งโดยเฉพาะ — เชื่อมกันผ่าน network
+# `thaikaomai_appnet` (external, มีอยู่แล้วก่อนหน้านี้)
+#
+# Deploy: scp โฟลเดอร์นี้ทั้งหมดขึ้น VPS เช่น /opt/vault/ แล้ว
+#   docker compose -f compose.vault.yml up -d
+#   sh setup-approle.sh   (ครั้งแรกครั้งเดียว — init, unseal, เขียน secret, สร้าง AppRole)
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  vault:
+    image: hashicorp/vault:1.18
+    container_name: thaikaomai-vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault-config.hcl:/vault/config/vault-config.hcl:ro
+      - vault-data:/vault/data
+    command: ["vault", "server", "-config=/vault/config/vault-config.hcl"]
+    # ไม่เปิด host port — เข้าถึงได้เฉพาะจาก container อื่นบน appnet เดียวกัน
+    # (setup-approle.sh รันจาก docker exec เข้าไปในนี้โดยตรง ไม่ต้องเปิดพอร์ต)
+    networks:
+      - appnet
+
+networks:
+  appnet:
+    name: thaikaomai_appnet
+    external: true
+
+volumes:
+  vault-data:

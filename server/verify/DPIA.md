@@ -143,15 +143,17 @@ SPA  ──(7) GET /api/verify/prefill?vs=<sid> (ครั้งเดียว)
 | R2 | โปรไฟล์ที่ยืนยันแล้วถูกดักระหว่าง prefill | M | เข้ารหัส AES-GCM, single-use, TTL 10 นาที, `sid` สุ่ม, TLS | L |
 | R3 | S2S ถูกปลอม/เล่นซ้ำ → ยัดผลปลอม/ดึงสถานะ | M | HMAC ต่อ request + timestamp skew 5 นาที + nonce + IP allowlist | L |
 | R4 | ThaID token/claims หลุดผ่าน log | M | นโยบายห้าม log PID/token/claims (บังคับในรีวิวโค้ด); ใช้แล้วทิ้ง | L |
-| R5 | เจ้าหน้าที่พรรคเข้าถึงผล KYC เกินความจำเป็น | M | สิทธิ์ตามบทบาท, แสดงแค่ badge ✅/❌, บันทึก log การเข้าถึง `[ต้องเปิดใช้]` | L–M |
+| R5 | เจ้าหน้าที่พรรคเข้าถึงผล KYC เกินความจำเป็น | M | สิทธิ์ตามบทบาท, แสดงแค่ badge ✅/❌, บันทึก log การเข้าถึงทุกครั้ง — `GET /api/verify/status/:registerLogId` เขียนลง `verify_access_log` แล้ว (`integration/verify-api-routes.ts`); เหลือแค่ต่อ `deps.getAccessor` เข้ากับ auth จริงของ api `[ต้องต่อก่อน go-live — ตอนนี้ default บันทึกเป็น 'unknown']` | L–M |
 | R6 | เก็บข้อมูลนานเกินจำเป็น | M | Retention policy + งานลบ/ทำ anonymize อัตโนมัติ `[ต้องกำหนด+ทำ]` | L |
-| R7 | เจ้าของข้อมูลใช้สิทธิ (เข้าถึง/แก้ไข/ลบ/คัดค้าน/ถอนยินยอม) ได้ยาก | M | ขั้นตอนรองรับผ่าน DPO; ค้นบันทึกด้วย `id_card_hash` โดยไม่ต้องขอ PID เต็ม `[ต้องจัดทำขั้นตอน]` | L |
+| R7 | เจ้าของข้อมูลใช้สิทธิ (เข้าถึง/แก้ไข/ลบ/คัดค้าน/ถอนยินยอม) ได้ยาก | M | ขั้นตอนรองรับผ่าน DPO; ค้นบันทึกด้วย `id_card_hash` โดยไม่ต้องขอ PID เต็ม — ดู [`DATA-SUBJECT-RIGHTS.md`](./DATA-SUBJECT-RIGHTS.md) `[~ รอ DPO รับรอง]` | L |
 | R8 | การเชื่อมโยง/ทำโปรไฟล์ข้ามระบบ | L | broker ไม่เก็บถาวร, ไม่มี analytics/third-party, ข้อมูลอยู่ในพรรคเท่านั้น | L |
-| R9 | `VERIFY_FIELD_KEY` อยู่ในไฟล์ `.env` (ไม่ใช่ KMS) | M | ควรย้ายไป KMS/secret manager ก่อน go-live (ระบุใน `GO-LIVE.md` ข้อ 2) | M → L เมื่อทำ |
+| R9 | `VERIFY_FIELD_KEY`/`VERIFY_S2S_SECRET`/`VERIFY_PID_PEPPER` อยู่ในไฟล์ `.env` (ไม่ใช่ secret manager) | M | โค้ดดึงจาก Vault แล้วเมื่อตั้ง `VAULT_ADDR` (`vaultClient.ts`) — เหลือ deploy Vault จริงบน VPS ตาม `integration/vault/README.md` (ระบุใน `GO-LIVE.md` ข้อ 2) | M → L เมื่อ deploy จริง |
 | R10 | ผู้สมัครเข้าใจผิดว่า "ต้อง" ใช้ ThaID | L | ข้อความชัดว่าเป็นทางเลือก; fallback ตรวจเอกสารเดิมทำงานเสมอ | L |
 | R11 | ThaID/DOPA ล่ม หรือเปลี่ยนสเปก claim | L | KYC ไม่ block การสมัคร; ปิด `VERIFY_DRIVER` กลับ `stub` ได้ทันที | L |
 
-**ความเสี่ยงคงเหลือ (residual):** R5, R9 อยู่ระดับ M จนกว่าจะเปิด access log และย้าย key ไป KMS
+**ความเสี่ยงคงเหลือ (residual):** R5 อยู่ระดับ M จนกว่าจะต่อ `deps.getAccessor` เข้ากับ auth
+จริงของ api (access log เขียนแล้ว แต่ยังบันทึก 'unknown' จนกว่าจะต่อ); R9 อยู่ระดับ M จนกว่า
+จะ deploy Vault จริงบน VPS (โค้ดฝั่ง broker พร้อมแล้ว รอแค่ infra)
 เมื่อดำเนินการครบ ความเสี่ยงทั้งหมดอยู่ระดับ **ยอมรับได้** — ประเมินว่า **ไม่เข้าเงื่อนไขต้องปรึกษา สคส.
 ล่วงหน้าตาม ม.36** แต่ต้องจัดเก็บ DPIA ฉบับนี้ไว้และทบทวนตามรอบ *(ให้ DPO ยืนยันคำวินิจฉัยนี้)*
 
@@ -168,14 +170,18 @@ SPA  ──(7) GET /api/verify/prefill?vs=<sid> (ครั้งเดียว)
 - TLS ทุกช่องทาง (reverse proxy)
 - อายุสั้น + ใช้ครั้งเดียว + sweep อัตโนมัติ สำหรับข้อมูลพัก
 - ห้าม log ข้อมูลตัวตน/โทเคน
-- แยก key management ไป KMS `[ก่อน go-live]`
+- แยก key management ไป Vault `[~ โค้ดพร้อมแล้ว รอ deploy Vault จริงบน VPS — ดู integration/vault/]`
 
 ### องค์กร
 - แต่งตั้ง DPO และประกาศช่องทางติดต่อ `[ทำ]`
 - Privacy notice เฉพาะเรื่อง KYC + ข้อความขอความยินยอม (ดู [`CONSENT.md`](./CONSENT.md))
-- จำกัดสิทธิ์เข้าถึงผล KYC ตามบทบาท + เปิด access log `[ทำ]`
+- จำกัดสิทธิ์เข้าถึงผล KYC ตามบทบาท + เปิด access log `[~]` — access log เขียนโค้ดแล้ว
+  (`GET /api/verify/status/:registerLogId` → `verify_access_log`) เหลือต่อ `getAccessor` กับ
+  auth จริงของ api + จำกัดสิทธิ์ตามบทบาทหน้า mount route (ยังเป็นหน้าที่ของ api ฝั่งนั้น)
 - กำหนด Retention policy เป็นลายลักษณ์อักษร + งานลบอัตโนมัติ `[ทำ]`
-- ขั้นตอนรองรับการใช้สิทธิของเจ้าของข้อมูล + ขั้นตอนแจ้งเหตุละเมิด (72 ชม. ตาม ม.37) `[ทำ]`
+- ขั้นตอนรองรับการใช้สิทธิของเจ้าของข้อมูล + ขั้นตอนแจ้งเหตุละเมิด (72 ชม. ตาม ม.37) `[~]`
+  ร่าง v0.1 อยู่ที่ [`DATA-SUBJECT-RIGHTS.md`](./DATA-SUBJECT-RIGHTS.md) และ
+  [`BREACH-NOTIFICATION.md`](./BREACH-NOTIFICATION.md) — ต้องให้ DPO + ที่ปรึกษากฎหมายรับรอง
 - Data Processing Agreement กับผู้ให้บริการโครงสร้างพื้นฐาน `[ทบทวน]`
 - Security assessment / penetration test ก่อนเปิดใช้ `[ทำ]`
 - อบรมเจ้าหน้าที่ที่เกี่ยวข้อง `[ทำ]`
@@ -202,7 +208,7 @@ SPA  ──(7) GET /api/verify/prefill?vs=<sid> (ครั้งเดียว)
   broker ไม่เก็บถาวร ข้อมูลพักมีอายุสั้นและเข้ารหัส
 - ความเสี่ยงหลักถูกลดจนอยู่ในระดับยอมรับได้ เมื่อดำเนินการตามข้อ 6 ครบ
 - **เงื่อนไขก่อนเปิดใช้จริง** (ดู `GO-LIVE.md`): (1) DPO + ที่ปรึกษากฎหมายรับรอง DPIA + ข้อความ consent,
-  (2) กำหนด Retention policy + งานลบอัตโนมัติ, (3) ย้าย `VERIFY_FIELD_KEY` ไป KMS,
+  (2) กำหนด Retention policy + งานลบอัตโนมัติ, (3) deploy Vault จริงบน VPS แล้วย้าย secret เข้าไป,
   (4) เปิด access log, (5) จัดทำขั้นตอนใช้สิทธิ + แจ้งเหตุละเมิด, (6) pen-test,
   (7) ทดสอบ `driver=oidc` กับ ThaID sandbox
 

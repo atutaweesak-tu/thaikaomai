@@ -5,17 +5,19 @@
 // วางในโปรเจกต์ api บน VPS (คนละ repo) แล้ว mount เข้า Express app ของ api
 // เหมือนที่ ก้อน A ให้ .sql + apply-verify-tables.sh ไว้รันตรงกับ MySQL
 //
-// ต้องมีตาราง (ก้อน A):  register_verification, verify_prefill_cache
+// ต้องมีตาราง (ก้อน A):  register_verification, verify_prefill_cache, verify_access_log
 // ต้องมี Prisma model:   integration/schema.verify.prisma
 // ต้องแชร์ env กับ broker: VERIFY_S2S_SECRET, VERIFY_FIELD_KEY
 //
-// 3 endpoint:
+// 4 endpoint:
 //   POST /api/verify/callback-ingest   (S2S ← broker)  บันทึกผล KYC (idempotent ด้วย sid)
 //                                                      + prefill mode: เก็บ VerifiedProfile
 //                                                        ที่เข้ารหัสไว้ใน verify_prefill_cache
 //   GET  /api/verify/prefill?vs=<sid>  (browser ← SPA) ดึง VerifiedProfile ครั้งเดียว
 //                                                      (single-use + TTL) เอาไปเติมฟอร์ม+ล็อก
 //   POST /api/verify/start             (browser ← SPA) เปิด broker session (S2S →) คืน verifyUrl
+//   GET  /api/verify/status/:registerLogId (browser ← หลังบ้าน/staff) คืน badge ผล KYC
+//                                                      + บันทึก verify_access_log ทุกครั้ง (DPIA R5)
 //
 // ── ADAPT: เมื่อวางในโปรเจกต์ api ─────────────────────────────────────────────
 //   1) import PrismaClient จริง แทน interface VerifyPrismaClient ด้านล่าง
@@ -27,6 +29,9 @@
 //      (route นี้ต้องอ่าน raw body เองเพื่อเช็ค HMAC) — ก้อนนี้ใส่ express.raw ให้เฉพาะจุด
 //   4) ใส่ auth/anti-abuse ของ api หน้า POST /api/verify/start ตามระบบเดิม
 //      (captcha / rate-limit / เช็คว่าเป็นคำขอจากหน้า register จริง)
+//   5) GET /api/verify/status/:registerLogId ต้อง mount หลัง middleware auth ของเจ้าหน้าที่
+//      (ห้ามเปิดสาธารณะ) + ส่ง deps.getAccessor คืน identity ผู้ล็อกอิน ไม่งั้น access log
+//      จะบันทึกเป็น 'unknown' ทุกแถว (ดู DPIA.md ความเสี่ยง R5)
 // ─────────────────────────────────────────────────────────────────────────────
 import express, { type Request, type Response, type Router } from 'express';
 
@@ -67,6 +72,11 @@ interface VerifiedProfile {
   geocode?: { provinceCode?: string; districtCode?: string; subDistrictCode?: string };
 }
 
+// เวอร์ชันข้อความ consent ที่ยอมรับ — ต้องตรงกับตารางใน server/verify/CONSENT.md หมวด D
+// และ DEFAULT_CONSENT_VERSION ใน integration/verify-prefill-client.ts (คนละ repo กัน อัปเดตมือ
+// ทั้งสามที่ทุกครั้งที่ DPO รับรองข้อความ consent เวอร์ชันใหม่)
+const VALID_CONSENT_VERSIONS = new Set(['2026-09-v1']);
+
 // ── Prisma delegate ที่ route นี้เรียก (ADAPT: แทนด้วย PrismaClient จริง) ─────
 // สมมติ model ชื่อ register_verification / verify_prefill_cache (สไตล์ introspection)
 // ถ้า api ใช้ @@map + ชื่อ model แบบ camelCase ให้ปรับชื่อ delegate ตาม
@@ -99,6 +109,14 @@ export interface PrefillCacheRow {
   consumed_at: Date | null;
 }
 
+// แถว audit ทุกครั้งที่มีการดูผล KYC ของใบสมัครหนึ่ง ๆ (DPIA.md R5 / GO-LIVE.md ข้อ 3)
+export interface AccessLogRow {
+  register_log_id: number;
+  sid: string | null;
+  accessed_by: string;
+  ip: string | null;
+}
+
 export interface VerifyPrismaClient {
   register_verification: {
     upsert(args: {
@@ -106,6 +124,10 @@ export interface VerifyPrismaClient {
       create: RegisterVerificationData;
       update: Partial<RegisterVerificationData>;
     }): Promise<unknown>;
+    findFirst(args: {
+      where: { register_log_id: number };
+      orderBy: { verified_at: 'desc' };
+    }): Promise<RegisterVerificationData | null>;
   };
   verify_prefill_cache: {
     findUnique(args: { where: { sid: string } }): Promise<PrefillCacheRow | null>;
@@ -118,6 +140,9 @@ export interface VerifyPrismaClient {
       where: { sid: string; consumed_at: null };
       data: { consumed_at: Date };
     }): Promise<{ count: number }>;
+  };
+  verify_access_log: {
+    create(args: { data: AccessLogRow }): Promise<unknown>;
   };
 }
 
@@ -141,6 +166,13 @@ export interface VerifyApiDeps {
    * UPDATE register_verification SET register_log_id=? WHERE sid=? ตอน SPA submit ฟอร์ม
    */
   resolveRegisterLogId?: (applicationRef: string) => Promise<number | null>;
+  /**
+   * ระบุตัวเจ้าหน้าที่ที่ล็อกอินอยู่ (สำหรับ access log ตอนดูผล KYC — DPIA.md R5)
+   * ADAPT: อ่านจาก session/JWT ของระบบ auth เดิมของ api (เช่น req.user?.email)
+   * default: คืน null → บันทึกเป็น 'unknown' (ยังบันทึกการเข้าถึงไว้ แต่ไม่รู้ว่าใคร —
+   * ควรต่อให้เสร็จก่อน go-live ไม่ให้ log ไร้ประโยชน์)
+   */
+  getAccessor?: (req: Request) => string | null;
 }
 
 interface VerifyApiConfig {
@@ -188,6 +220,7 @@ export function createVerifyApiRoutes(deps: VerifyApiDeps): Router {
       const n = Number(String(ref).trim());
       return Number.isInteger(n) && n > 0 ? n : null;
     });
+  const getAccessor = deps.getAccessor || (() => null);
 
   if (!cfg.enabled) {
     console.log('[verify-api] disabled (ตั้ง VERIFY_ENABLED=true เพื่อเปิด)');
@@ -195,9 +228,10 @@ export function createVerifyApiRoutes(deps: VerifyApiDeps): Router {
     router.all('/api/verify/callback-ingest', notFound);
     router.all('/api/verify/prefill', notFound);
     router.all('/api/verify/start', notFound);
+    router.all('/api/verify/status/:registerLogId', notFound);
     return router;
   }
-  console.log('[verify-api] enabled — ingest + prefill-consume + start');
+  console.log('[verify-api] enabled — ingest + prefill-consume + start + status');
 
   router.use('/api/verify', (_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -380,10 +414,17 @@ export function createVerifyApiRoutes(deps: VerifyApiDeps): Router {
     }
 
     // ความยินยอม PDPA: SPA ส่ง version มา — api set acceptedAt เป็นเวลา server เอง (ไม่เชื่อ client)
-    // ADAPT: validate version กับรายการเวอร์ชันข้อความ consent ที่ใช้จริง; ปฏิเสธถ้าไม่ยินยอม
+    // ปฏิเสธคำขอที่ไม่มี consent หรือ version ไม่อยู่ใน VALID_CONSENT_VERSIONS ด้านล่าง
+    // (ต้องตรงกับ server/verify/CONSENT.md หมวด D — ปิด GO-LIVE.md ข้อ 3)
     const consentIn = (body.consent && typeof body.consent === 'object' ? body.consent : {}) as Record<string, unknown>;
     const consentVersion = typeof consentIn.version === 'string' ? consentIn.version.trim().slice(0, 16) : '';
-    const consent = consentVersion ? { version: consentVersion, acceptedAt: new Date().toISOString() } : undefined;
+    if (!consentVersion) {
+      return json(res, 400, { error: 'consent_required' });
+    }
+    if (!VALID_CONSENT_VERSIONS.has(consentVersion)) {
+      return json(res, 400, { error: 'consent_version_unknown' });
+    }
+    const consent = { version: consentVersion, acceptedAt: new Date().toISOString() };
 
     const brokerBody = JSON.stringify({ applicationRef, mode, matchFields: seed, consent });
     const headers = signOutgoingS2S(brokerBody, cfg.s2s.secret);
@@ -409,6 +450,60 @@ export function createVerifyApiRoutes(deps: VerifyApiDeps): Router {
       console.error(`[verify-api] broker session error: ${(e as Error).message}`);
       return json(res, 502, { error: 'broker_unreachable' });
     }
+  });
+
+  // ── GET /api/verify/status/:registerLogId (browser ← หลังบ้าน/staff) ──────
+  // คืน badge ผล KYC (✅/⏳/❌/—) ให้เจ้าหน้าที่ตรวจใบสมัคร — ไม่มี PID/ชื่อ/ที่อยู่
+  // ให้เปิดเผยอยู่แล้ว (register_verification ไม่เก็บสิ่งเหล่านี้ตาม DPIA.md ข้อ 2.2)
+  // แต่ยังต้องบันทึกว่า "ใครเข้าถึงเมื่อไหร่" (DPIA.md R5) เพราะเป็นข้อมูลเกี่ยวกับ
+  // สถานะสมาชิกภาพ/การเมืองของบุคคล (ข้อมูลอ่อนไหว ม.26) แม้จะเป็นแค่ flag ก็ตาม
+  //
+  // ADAPT: mount เส้นนี้หลัง middleware auth ของเจ้าหน้าที่ในระบบ api เดิม (ห้ามเปิดสาธารณะ)
+  // แล้วส่ง deps.getAccessor ให้คืน identity ของผู้ใช้ที่ login อยู่ (เช่น req.user.email)
+  router.get('/api/verify/status/:registerLogId', async (req: Request, res: Response) => {
+    const registerLogId = Number(req.params.registerLogId);
+    if (!Number.isInteger(registerLogId) || registerLogId <= 0) {
+      return json(res, 400, { error: 'bad_register_log_id' });
+    }
+
+    let row: RegisterVerificationData | null;
+    try {
+      row = await prisma.register_verification.findFirst({
+        where: { register_log_id: registerLogId },
+        orderBy: { verified_at: 'desc' },
+      });
+    } catch (e) {
+      console.error(`[verify-api] status lookup error: ${(e as Error).message}`);
+      return json(res, 500, { error: 'status_lookup_failed' });
+    }
+
+    // บันทึก access log ก่อนตอบ ไม่ว่าจะเจอผลหรือไม่ (เจ้าหน้าที่ "ดู" ใบสมัครนี้จริง)
+    const accessedBy = getAccessor(req) || 'unknown';
+    try {
+      await prisma.verify_access_log.create({
+        data: { register_log_id: registerLogId, sid: row?.sid ?? null, accessed_by: accessedBy, ip: clientIp(req) },
+      });
+    } catch (e) {
+      // ห้ามให้การบันทึก log ที่ล้มเหลวไปบล็อกไม่ให้เจ้าหน้าที่เห็นผล KYC — แค่ log แจ้งเตือนไว้
+      console.error(`[verify-api] access log write failed (register_log_id=${registerLogId}): ${(e as Error).message}`);
+    }
+    if (accessedBy === 'unknown') {
+      console.warn(`[verify-api] status accessed by UNKNOWN staff — ต่อ deps.getAccessor ให้เสร็จก่อน go-live`);
+    }
+
+    if (!row) {
+      return json(res, 200, { status: 'none', overallPass: null });
+    }
+    return json(res, 200, {
+      status: row.status,
+      mode: row.mode,
+      overallPass: row.overall_pass,
+      nameMatch: row.name_match,
+      birthdateMatch: row.birthdate_match,
+      addressMatch: row.address_match,
+      ial: row.ial,
+      verifiedAt: row.verified_at,
+    });
   });
 
   return router;

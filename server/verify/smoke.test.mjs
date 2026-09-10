@@ -6,6 +6,7 @@
 //   C. OIDC driver กับ mock IdP (token/JWKS/userinfo, happy + fail paths)
 //   D. api routes (integration/verify-api-routes): ingest + prefill consume + start
 //   E. SPA client (integration/verify-prefill-client): helpers + full round trip
+//   F. Vault client (vaultClient.ts): AppRole login + KV v2 read, happy + fail paths
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -249,14 +250,25 @@ section('D. api routes');
   const cx = await load('./integration/verify-api-crypto.ts');
   const SECRET = 's'.repeat(40), KEY = 'cd'.repeat(32);
 
-  const rv = new Map(), pc = new Map();
+  const rv = new Map(), pc = new Map(), al = [];
   const prisma = {
-    register_verification: { async upsert({ where, create, update }) { rv.has(where.sid) ? Object.assign(rv.get(where.sid), update) : rv.set(where.sid, { ...create }); return rv.get(where.sid); } },
+    register_verification: {
+      async upsert({ where, create, update }) { rv.has(where.sid) ? Object.assign(rv.get(where.sid), update) : rv.set(where.sid, { ...create }); return rv.get(where.sid); },
+      async findFirst({ where }) {
+        let best = null;
+        for (const row of rv.values()) {
+          if (row.register_log_id !== where.register_log_id) continue;
+          if (!best || (row.verified_at && (!best.verified_at || row.verified_at > best.verified_at))) best = row;
+        }
+        return best;
+      },
+    },
     verify_prefill_cache: {
       async findUnique({ where }) { return pc.get(where.sid) ?? null; },
       async upsert({ where, create, update }) { pc.has(where.sid) ? Object.assign(pc.get(where.sid), update) : pc.set(where.sid, { ...create, consumed_at: null }); return pc.get(where.sid); },
       async updateMany({ where, data }) { const r = pc.get(where.sid); if (r && r.consumed_at === null) { r.consumed_at = data.consumed_at; return { count: 1 }; } return { count: 0 }; },
     },
+    verify_access_log: { async create({ data }) { al.push(data); return data; } },
   };
   // fake broker for /start
   const brokerApp = express();
@@ -307,6 +319,34 @@ section('D. api routes');
   const sj = await r.json();
   ok(r.status === 201 && sj.verifyUrl?.includes('sid='), 'start → 201 verifyUrl');
   ok(brokerSaw?.mode === 'prefill' && brokerSaw?.consent?.version === '2026-09-v1' && typeof brokerSaw?.consent?.acceptedAt === 'string', 'start forwards consent w/ server acceptedAt');
+
+  // GET /api/verify/status/:registerLogId — badge + access log (DPIA.md R5)
+  r = await fetch(`${apiBase}/api/verify/status/42`);
+  const st = await r.json();
+  ok(r.status === 200 && st.overallPass === true && st.mode === 'prefill', 'status: badge for known register_log_id');
+  ok(al.length === 1 && al[0].register_log_id === 42 && al[0].sid === sid && al[0].accessed_by === 'unknown', 'status: access log written (default accessor = unknown)');
+
+  r = await fetch(`${apiBase}/api/verify/status/999999`);
+  const stNone = await r.json();
+  ok(r.status === 200 && stNone.status === 'none' && stNone.overallPass === null, 'status: unknown register_log_id → none');
+  ok(al.length === 2 && al[1].register_log_id === 999999 && al[1].sid === null, 'status: access log written even when no result found');
+
+  r = await fetch(`${apiBase}/api/verify/status/not-a-number`);
+  ok(r.status === 400, 'status: bad register_log_id → 400');
+
+  // getAccessor DI hook — ควรได้ identity จริงแทน 'unknown' เมื่อ api ต่อ auth ของตัวเองแล้ว
+  const appWithAccessor = express();
+  appWithAccessor.use(createVerifyApiRoutes({
+    prisma, getAccessor: () => 'staff@thaikaomai.or.th',
+    env: { VERIFY_ENABLED: 'true', VERIFY_S2S_SECRET: SECRET, VERIFY_FIELD_KEY: KEY, VERIFY_S2S_TRUST_ALL_IPS: 'true', VERIFY_PUBLIC_BASE: `http://127.0.0.1:${brokerSrv.address().port}` },
+  }));
+  const srv2 = await listen(appWithAccessor);
+  r = await fetch(`http://127.0.0.1:${srv2.address().port}/api/verify/status/42`);
+  ok(r.status === 200 && al.at(-1)?.accessed_by === 'staff@thaikaomai.or.th', 'status: getAccessor hook used when provided');
+
+  const srvOff = await listen(express().use(createVerifyApiRoutes({ prisma, env: { VERIFY_ENABLED: 'false' } })));
+  r = await fetch(`http://127.0.0.1:${srvOff.address().port}/api/verify/status/42`);
+  ok(r.status === 404, 'status: VERIFY_ENABLED=false → 404');
 }
 
 // ═══ E. SPA client (integration/verify-prefill-client) ══════════════════════
@@ -372,6 +412,44 @@ section('E. SPA client');
   ok(!window.location.search.includes('vs='), 'clearVerifyReturnParams strips vs');
   try { await C.consumePrefill(sid, { apiBase }); ok(false, 'second consume should be gone'); }
   catch (e) { ok(e.code === 'gone', `second consume → PrefillError gone (${e.code})`); }
+}
+
+// ═══ F. Vault client (vaultClient.ts) ════════════════════════════════════════
+section('F. Vault client');
+{
+  const { fetchVaultSecrets } = await load('./vaultClient.ts');
+
+  // mock Vault server: AppRole login + KV v2 read
+  const mockVault = express();
+  mockVault.use(express.json());
+  mockVault.post('/v1/auth/approle/login', (req, res) => {
+    if (req.body?.role_id === 'r1' && req.body?.secret_id === 's1') {
+      return res.json({ auth: { client_token: 'TOKEN123' } });
+    }
+    return res.status(400).json({ errors: ['invalid role_id or secret_id'] });
+  });
+  mockVault.get('/v1/secret/data/thaikaomai/verify', (req, res) => {
+    if (req.headers['x-vault-token'] !== 'TOKEN123') return res.status(403).json({ errors: ['permission denied'] });
+    return res.json({ data: { data: { VERIFY_FIELD_KEY: 'cd'.repeat(32), VERIFY_S2S_SECRET: 's'.repeat(40), VERIFY_PID_PEPPER: 'p'.repeat(20) } } });
+  });
+  mockVault.get('/v1/secret/data/missing', (req, res) => res.status(404).json({ errors: [] }));
+  const vaultSrv = await listen(mockVault);
+  const addr = `http://127.0.0.1:${vaultSrv.address().port}`;
+
+  const secrets = await fetchVaultSecrets({ addr, roleId: 'r1', secretId: 's1', path: 'secret/data/thaikaomai/verify' });
+  ok(secrets.VERIFY_FIELD_KEY === 'cd'.repeat(32) && secrets.VERIFY_S2S_SECRET === 's'.repeat(40), 'fetchVaultSecrets: happy path returns all keys');
+
+  try { await fetchVaultSecrets({ addr, roleId: 'wrong', secretId: 'wrong', path: 'secret/data/thaikaomai/verify' }); ok(false, 'bad approle creds should throw'); }
+  catch (e) { ok(/login failed/.test(e.message), `fetchVaultSecrets: bad AppRole creds → throws (${e.message})`); }
+
+  try { await fetchVaultSecrets({ addr, roleId: 'r1', secretId: 's1', path: 'secret/data/missing' }); ok(false, 'missing path should throw'); }
+  catch (e) { ok(/read secret failed/.test(e.message), `fetchVaultSecrets: missing path → throws (${e.message})`); }
+
+  try { await fetchVaultSecrets({ addr, roleId: '', secretId: '', path: 'secret/data/thaikaomai/verify' }); ok(false, 'empty creds should throw'); }
+  catch (e) { ok(/ไม่ได้ตั้ง/.test(e.message), `fetchVaultSecrets: empty role/secret id → throws before network call (${e.message})`); }
+
+  try { await fetchVaultSecrets({ addr: 'http://127.0.0.1:1', roleId: 'r1', secretId: 's1', path: 'secret/data/thaikaomai/verify', timeoutMs: 300 }); ok(false, 'unreachable vault should throw'); }
+  catch (e) { ok(true, `fetchVaultSecrets: unreachable Vault → throws (${e.message})`); }
 }
 
 // ═══ done ═══════════════════════════════════════════════════════════════════

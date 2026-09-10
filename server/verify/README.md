@@ -95,6 +95,7 @@ sweep ทิ้งอัตโนมัติทุก 5 นาที **ไม�
 | POST | `/api/verify/callback-ingest` | broker (S2S) | บันทึกผล KYC ลง `register_verification` (idempotent ด้วย `sid`); prefill mode เก็บ `VerifiedProfile` เข้ารหัสใน `verify_prefill_cache` |
 | GET | `/api/verify/prefill?vs=<sid>` | เบราว์เซอร์ (SPA) | ดึง `VerifiedProfile` **ครั้งเดียว** (single-use + TTL ~10 นาที) ไปเติมฟอร์ม+ล็อก |
 | POST | `/api/verify/start` | เบราว์เซอร์ (SPA) | เปิด broker session (S2S →) คืน `verifyUrl` — ADAPT: ครอบด้วย auth/captcha/rate-limit ของ api |
+| GET | `/api/verify/status/:registerLogId` | เบราว์เซอร์ (หลังบ้าน/staff) | คืน badge ผล KYC ให้เจ้าหน้าที่ตรวจใบสมัคร + บันทึก `verify_access_log` ทุกครั้งที่เรียก (DPIA R5) — ADAPT: mount หลัง auth middleware ของเจ้าหน้าที่ + ส่ง `deps.getAccessor` ให้คืน identity ผู้ล็อกอิน (ห้ามเปิดสาธารณะ) |
 
 ### S2S auth (ทั้งขาเข้า/ขาออก)
 
@@ -239,13 +240,21 @@ api: S2S-sign → `POST {VERIFY_PUBLIC_BASE}/api/verify/session` → คืน `
 **consent (PDPA):** SPA ส่งแค่ `consent.version` — api set `acceptedAt` เป็นเวลา server เอง
 (ไม่เชื่อ client) แล้วส่งต่อ broker → broker เก็บใน `verify_sessions` → echo กลับใน ingest
 → api ลง `register_verification.consent_at` / `consent_version`
-**ADAPT:** ปฏิเสธคำขอถ้าไม่มี consent / version ไม่อยู่ในรายการที่ใช้จริง
+ปฏิเสธคำขอ (`400`) ถ้าไม่มี `consent.version` หรือ version ไม่อยู่ใน `VALID_CONSENT_VERSIONS`
+(บังคับแล้วใน `integration/verify-api-routes.ts` — bump ทั้ง `VALID_CONSENT_VERSIONS`,
+`CONSENT.md` หมวด D, และ `DEFAULT_CONSENT_VERSION` พร้อมกันทุกครั้งที่เปลี่ยนข้อความ consent)
 
 ### หลังบ้าน (ส่วนที่ 2)
 
 `register_log LEFT JOIN register_verification ON register_verification.register_log_id = register_log.id`
 (หรือ join ด้วย `sid` ที่เก็บคู่ใบสมัคร) → badge: ✅ ThaID ยืนยันแล้ว / ⏳ รอ / ❌ ไม่ผ่าน / — ไม่ได้ทำ
 เช็คแค่ `overall_pass` — ของเดิมยังตรวจ manual ได้ทุกใบ
+
+ให้หน้าตรวจใบสมัครเรียก `GET /api/verify/status/:registerLogId` (แทนการ query
+`register_verification` ตรง ๆ) เพื่อให้ทุกครั้งที่เจ้าหน้าที่เปิดดูผล KYC ถูกบันทึกลง
+`verify_access_log` อัตโนมัติ (DPIA.md ความเสี่ยง R5) — ต้อง mount route นี้หลัง middleware
+ตรวจสิทธิ์เจ้าหน้าที่ของ api เอง และส่ง `getAccessor: (req) => req.user?.email` (หรือเทียบเท่า)
+เข้าไปใน `createVerifyApiRoutes(...)` ไม่งั้น log จะบันทึกผู้เข้าถึงเป็น `'unknown'` ทุกแถว
 
 ---
 
@@ -413,8 +422,13 @@ export function ThaidVerifyButton({ citizenId, apiBase }: { citizenId: string; a
 โค้ด broker + api routes + SPA client + OIDC driver + consent plumbing (ก้อน A–E) เสร็จแล้ว
 ที่เหลือ = งาน DOPA / infra / PDPA — checklist เต็มอยู่ที่ **[`GO-LIVE.md`](./GO-LIVE.md)**
 
-เอกสาร PDPA: **[`DPIA.md`](./DPIA.md)** + **[`CONSENT.md`](./CONSENT.md)** — ร่าง v0.1 แล้ว
-รอ DPO + ที่ปรึกษากฎหมายรับรอง (เติมข้อมูลพรรค, กำหนด retention เป็นตัวเลข, ลงนาม)
+เอกสาร PDPA: **[`DPIA.md`](./DPIA.md)** + **[`CONSENT.md`](./CONSENT.md)** +
+**[`DATA-SUBJECT-RIGHTS.md`](./DATA-SUBJECT-RIGHTS.md)** + **[`BREACH-NOTIFICATION.md`](./BREACH-NOTIFICATION.md)**
+— ร่าง v0.1 แล้วทั้งหมด รอ DPO + ที่ปรึกษากฎหมายรับรอง (เติมข้อมูลพรรค, กำหนด retention เป็นตัวเลข, ลงนาม)
 
-หัวข้อหลักที่เหลือ: RP onboarding + ยืนยันชื่อ claim ใน `mapThaidClaims()` · `VERIFY_FIELD_KEY` จาก KMS ·
-ลงทะเบียน `THAID_REDIRECT_URI` กับ DOPA · api บังคับ consent · retention job · access log · pen-test
+หัวข้อหลักที่เหลือ: RP onboarding + ยืนยันชื่อ claim ใน `mapThaidClaims()` ·
+ลงทะเบียน `THAID_REDIRECT_URI` กับ DOPA · retention job · pen-test
+
+โค้ดของ 3 อย่างนี้เสร็จแล้ว เหลือแค่ deploy/ต่อ infra จริง: consent gate (บังคับแล้วที่ api),
+access log ผล KYC (`GET /api/verify/status/:id` เขียนแล้ว รอต่อ `getAccessor` กับ auth จริง),
+secret จาก Vault (`vaultClient.ts` พร้อมแล้ว รอ deploy Vault ตาม `integration/vault/README.md`)

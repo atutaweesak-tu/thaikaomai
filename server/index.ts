@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { readRawEnv } from './env';
 import { createApiHandlers } from './api';
 import { createVerifyRouter } from './verify/routes';
+import { fetchVaultSecrets } from './verify/vaultClient';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -19,6 +20,26 @@ if (!fs.existsSync(distDir)) {
 }
 
 const env = readRawEnv(rootDir);
+
+// VERIFY_FIELD_KEY / VERIFY_S2S_SECRET / VERIFY_PID_PEPPER มาจาก Vault แทน .env เมื่อ
+// ตั้ง VAULT_ADDR ไว้ (GO-LIVE.md ข้อ 2, DPIA.md R9) — ไม่ตั้งไว้ (local/dev/test) ใช้ค่าจาก
+// .env ตรงๆ ตามเดิม ไม่กระทบ workflow เดิม — ล้มเหลว = หยุด boot ทันที (fail closed)
+if (env.VAULT_ADDR) {
+  try {
+    const secrets = await fetchVaultSecrets({
+      addr: env.VAULT_ADDR,
+      roleId: env.VAULT_ROLE_ID || '',
+      secretId: env.VAULT_SECRET_ID || '',
+      path: env.VAULT_VERIFY_SECRET_PATH || 'secret/data/thaikaomai/verify',
+    });
+    Object.assign(env, secrets);
+    console.log('[server] โหลด verify secrets จาก Vault สำเร็จ (VAULT_ADDR ตั้งไว้)');
+  } catch (e) {
+    console.error(`[server] โหลด secrets จาก Vault ไม่สำเร็จ: ${(e as Error).message}`);
+    process.exit(1);
+  }
+}
+
 const handlers = createApiHandlers(env, dataDir, distDir);
 
 const app = express();

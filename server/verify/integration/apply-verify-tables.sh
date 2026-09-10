@@ -47,15 +47,28 @@ CREATE TABLE IF NOT EXISTS `verify_prefill_cache` (
   PRIMARY KEY (`sid`),
   KEY `idx_verify_prefill_cache_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- access log: ทุกครั้งที่เจ้าหน้าที่ดูผล KYC ของใบสมัคร (DPIA.md R5, GET /api/verify/status/:id)
+CREATE TABLE IF NOT EXISTS `verify_access_log` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `register_log_id`  INT NOT NULL,
+  `sid`              VARCHAR(64) NULL,
+  `accessed_by`      VARCHAR(128) NOT NULL,
+  `accessed_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ip`               VARCHAR(45) NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_verify_access_log_register_log` (`register_log_id`),
+  KEY `idx_verify_access_log_accessed_by` (`accessed_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 SQL
 
 echo "--- ตารางที่มีตอนนี้ ---"
 docker exec thaikaomai-mysql-1 mysql -uroot -p"$PW" thaikaomai -N -e \
-  "SHOW TABLES LIKE 'register_verification'; SHOW TABLES LIKE 'verify_prefill_cache';"
+  "SHOW TABLES LIKE 'register_verification'; SHOW TABLES LIKE 'verify_prefill_cache'; SHOW TABLES LIKE 'verify_access_log';"
 echo "--- columns ของ register_verification ---"
 docker exec thaikaomai-mysql-1 mysql -uroot -p"$PW" thaikaomai -N -e \
   "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='thaikaomai' AND table_name='register_verification';"
 
 # ── ROLLBACK (ถ้าต้องถอน) ────────────────────────────────────────────────────
 # docker exec -i thaikaomai-mysql-1 mysql -uroot -p"$PW" thaikaomai -e \
-#   "DROP TABLE IF EXISTS register_verification, verify_prefill_cache;"
+#   "DROP TABLE IF EXISTS register_verification, verify_prefill_cache, verify_access_log;"

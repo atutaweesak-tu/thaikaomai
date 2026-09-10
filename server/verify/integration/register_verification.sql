@@ -53,4 +53,18 @@ CREATE TABLE IF NOT EXISTS `verify_prefill_cache` (
   KEY `idx_verify_prefill_cache_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- ROLLBACK: DROP TABLE IF EXISTS register_verification, verify_prefill_cache;
+-- access log: ทุกครั้งที่เจ้าหน้าที่ดูผล KYC ของใบสมัครหนึ่ง ๆ ผ่าน GET /api/verify/status/:id
+-- (DPIA.md ความเสี่ยง R5 — เจ้าหน้าที่เข้าถึงผล KYC เกินความจำเป็น)
+CREATE TABLE IF NOT EXISTS `verify_access_log` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `register_log_id`  INT NOT NULL,
+  `sid`              VARCHAR(64) NULL,               -- register_verification.sid ณ ตอนที่ดู (nullable ถ้ายังไม่มีผล)
+  `accessed_by`      VARCHAR(128) NOT NULL,          -- identity เจ้าหน้าที่จากระบบ auth เดิมของ api
+  `accessed_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ip`               VARCHAR(45) NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_verify_access_log_register_log` (`register_log_id`),
+  KEY `idx_verify_access_log_accessed_by` (`accessed_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ROLLBACK: DROP TABLE IF EXISTS register_verification, verify_prefill_cache, verify_access_log;

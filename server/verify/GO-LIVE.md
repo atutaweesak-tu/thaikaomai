@@ -29,7 +29,10 @@
 ## 2. Infra / secrets
 
 - [ ] `VERIFY_S2S_SECRET` — สุ่ม >= 32 ตัว ตั้ง **ค่าเดียวกัน** ทั้ง broker และ api
-- [ ] `VERIFY_FIELD_KEY` — AES-256-GCM key จาก **KMS / secret manager** ไม่ใช่ไฟล์ `.env` ธรรมดา
+- [x] `VERIFY_FIELD_KEY` (+ `VERIFY_S2S_SECRET`, `VERIFY_PID_PEPPER`) — AES-256-GCM key จาก
+      **Vault (self-hosted)** แทนไฟล์ `.env` ธรรมดา — โค้ดพร้อมแล้ว (`server/verify/vaultClient.ts`,
+      เรียกจาก `server/index.ts` เมื่อตั้ง `VAULT_ADDR`); **ยังต้อง deploy Vault จริงบน VPS**
+      ตาม `integration/vault/README.md` แล้วรัน `setup-approle.sh` ย้ายค่าที่ใช้อยู่ตอนนี้เข้าไป
 - [ ] `VERIFY_PID_PEPPER` — สุ่ม >= 16 ตัว (ฝั่ง broker); เก็บแยกจาก DB
 - [ ] Docker base image `node:22-alpine`+ (broker ใช้ `node:sqlite` core module)
 - [ ] api: mount `createVerifyApiRoutes()` — **อย่าเอา `express.json()` ครอบ `/api/verify/callback-ingest`**
@@ -47,11 +50,18 @@
 - [~] **ข้อความขอความยินยอม** — ร่าง v0.1 อยู่ที่ [`CONSENT.md`](./CONSENT.md); หมวด A ใส่ใน
       `ThaidVerifyButton` ใน README แล้ว (ยังชี้ `PRIVACY_NOTICE_URL` placeholder) — ต้อง DPO รับรอง +
       ทำหน้าแสดงหมวด B + ยืนยัน `DEFAULT_CONSENT_VERSION` = `2026-09-v1`
-- [ ] api: **ปฏิเสธคำขอ `/api/verify/start` ที่ไม่มี consent** / `version` ไม่อยู่ในตาราง `CONSENT.md` หมวด D
-      (plumbing เก็บ `consent_at`/`consent_version` ครบสายแล้ว — ก้อน E)
+- [x] api: **ปฏิเสธคำขอ `/api/verify/start` ที่ไม่มี consent** / `version` ไม่อยู่ในตาราง `CONSENT.md` หมวด D
+      (`VALID_CONSENT_VERSIONS` ใน `integration/verify-api-routes.ts`; plumbing เก็บ
+      `consent_at`/`consent_version` ครบสายแล้ว — ก้อน E)
 - [ ] retention policy — กำหนดตัวเลข `[X]` ปีใน `DPIA.md`/`CONSENT.md` + ทำงานลบ/anonymize อัตโนมัติ
-- [ ] เปิด access log การเข้าถึงผล KYC (DPIA ความเสี่ยง R5)
-- [ ] ขั้นตอนใช้สิทธิเจ้าของข้อมูล (DPIA ข้อ 7) + ขั้นตอนแจ้งเหตุละเมิด 72 ชม. (ม.37)
+- [~] เปิด access log การเข้าถึงผล KYC (DPIA ความเสี่ยง R5) — `GET /api/verify/status/:registerLogId`
+      เขียนลง `verify_access_log` แล้ว (ต้อง apply ตาราง — ดู `apply-verify-tables.sh`);
+      เหลือแค่ต่อ `deps.getAccessor` เข้ากับ auth จริงของ api และ mount หลัง middleware
+      ตรวจสิทธิ์เจ้าหน้าที่ (ห้ามเปิดเส้นนี้สาธารณะ)
+- [~] ขั้นตอนใช้สิทธิเจ้าของข้อมูล (DPIA ข้อ 7) + ขั้นตอนแจ้งเหตุละเมิด 72 ชม. (ม.37) —
+      ร่าง v0.1 อยู่ที่ [`DATA-SUBJECT-RIGHTS.md`](./DATA-SUBJECT-RIGHTS.md) และ
+      [`BREACH-NOTIFICATION.md`](./BREACH-NOTIFICATION.md); ต้อง DPO + ที่ปรึกษากฎหมายรับรอง
+      (เติมช่องทางติดต่อ/ช่องทางแจ้ง สคส. ที่ยังเป็น `[...]`)
 - [ ] แต่งตั้ง DPO + ประกาศช่องทางติดต่อ; แจ้ง/ปรึกษา สคส. ตามที่ DPO วินิจฉัย (DPIA ข้อ 8)
 
 ## 4. หลังบ้าน (ส่วนที่ 2)

@@ -9,8 +9,9 @@
 // (Dockerfile.vps ของ api รัน generate ให้เองตอน build service `api`)
 //
 // delegate ที่ verify-api-routes.ts เรียก:
-//   prisma.register_verification.upsert(...)
+//   prisma.register_verification.upsert(...) / findFirst(...)
 //   prisma.verify_prefill_cache.findUnique / upsert / updateMany
+//   prisma.verify_access_log.create(...)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// ผล KYC ต่อ 1 ครั้งการยืนยัน — keyed ด้วย sid ของ broker (unique → ingest idempotent)
@@ -62,6 +63,20 @@ model verify_prefill_cache {
   @@index([expires_at], map: "idx_verify_prefill_cache_expires")
 }
 
+/// audit: ทุกครั้งที่เจ้าหน้าที่ดูผล KYC ของใบสมัคร (DPIA.md ความเสี่ยง R5) —
+/// เขียนจาก GET /api/verify/status/:registerLogId เท่านั้น ไม่มี update/delete
+model verify_access_log {
+  id              BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  register_log_id Int
+  sid             String?  @db.VarChar(64) // register_verification.sid ณ ตอนที่ดู
+  accessed_by     String   @db.VarChar(128) // identity เจ้าหน้าที่จากระบบ auth เดิมของ api
+  accessed_at     DateTime @default(now()) @db.DateTime(0)
+  ip              String?  @db.VarChar(45)
+
+  @@index([register_log_id], map: "idx_verify_access_log_register_log")
+  @@index([accessed_by], map: "idx_verify_access_log_accessed_by")
+}
+
 // ── sweep แถวหมดอายุ (cron ฝั่ง api หรือ setInterval ตอน boot) ────────────────
 //   DELETE FROM verify_prefill_cache WHERE expires_at < NOW() - INTERVAL 1 DAY;
-//   (register_verification เก็บถาวรเพื่อ audit — ไม่ sweep)
+//   (register_verification และ verify_access_log เก็บถาวรเพื่อ audit — ไม่ sweep)

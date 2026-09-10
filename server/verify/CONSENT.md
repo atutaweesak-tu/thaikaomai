@@ -106,6 +106,7 @@
   แทน placeholder เดิม; ลิงก์ชี้ไปหน้าที่แสดงหมวด B
 - SPA ส่งเฉพาะ `consent: { version: "2026-09-v1" }` ไปที่ `POST /api/verify/start` —
   **ห้ามส่ง `acceptedAt` จาก client**; api ประทับเวลา server เอง (ดู `integration/verify-api-routes.ts`)
-- api ควร **ปฏิเสธ** คำขอที่ไม่มี `consent.version` หรือ version ไม่อยู่ในตารางหมวด D
-  (ปัจจุบันยังรับผ่าน — ดู `GO-LIVE.md` ข้อ 3)
+- api **ปฏิเสธ** คำขอที่ไม่มี `consent.version` หรือ version ไม่อยู่ในตารางหมวด D แล้ว
+  (`VALID_CONSENT_VERSIONS` ใน `integration/verify-api-routes.ts`) — bump รายการนั้นพร้อมกับ
+  แถวใหม่ในหมวด D นี้ทุกครั้งที่ DPO รับรองข้อความ consent เวอร์ชันใหม่
 - `consent_version` / `consent_at` ถูกบันทึกลง `register_verification` ตลอดสาย (broker → ingest)
