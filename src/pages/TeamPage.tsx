@@ -115,13 +115,14 @@ export default function TeamPage() {
         {experts.length > 0 && (
           <div>
             <h2 className="text-3xl font-black tracking-tighter mb-12 uppercase border-b border-white/10 pb-4">กรรมการบริหารพรรค</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-3 md:gap-8 md:overflow-visible">
               {experts.map((member) => (
                 <motion.div
                   key={member.id}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
+                  className="shrink-0 w-[80%] snap-center md:w-auto md:shrink"
                 >
                   <Link to={`/team/${member.id}`} className="bento-card group block">
                     <div className="w-full md:w-80 aspect-square rounded-2xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
