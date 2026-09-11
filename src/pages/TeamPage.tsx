@@ -59,9 +59,9 @@ export default function TeamPage() {
                 >
                   <Link
                     to={`/team/${member.id}`}
-                    className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
+                    className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-start hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
                   >
-                    <div className="w-full md:w-64 aspect-square rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
+                    <div className="w-full md:w-80 aspect-square rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
                       {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
                     </div>
                     <div>
@@ -92,9 +92,9 @@ export default function TeamPage() {
                 >
                   <Link
                     to={`/team/${member.id}`}
-                    className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
+                    className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-start hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
                   >
-                    <div className="w-full md:w-64 aspect-square rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
+                    <div className="w-full md:w-80 aspect-square rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
                       {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
                     </div>
                     <div>
@@ -124,7 +124,7 @@ export default function TeamPage() {
                   viewport={{ once: true }}
                 >
                   <Link to={`/team/${member.id}`} className="bento-card group block">
-                    <div className="aspect-square rounded-2xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
+                    <div className="w-full md:w-80 aspect-square rounded-2xl overflow-hidden mb-6 border border-white/10 bg-white/5 flex items-center justify-center">
                       {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={40} strokeWidth={1} className="text-white/15" />}
                     </div>
                     <h3 className="text-xl font-bold mb-1">{member.name}</h3>
