@@ -35,6 +35,8 @@ export default function NewsSection() {
     return true;
   });
 
+  const latestNews = visibleNews.slice(0, 4);
+
   const visibleEvents = upcomingEvents(events);
 
   return (
@@ -59,7 +61,7 @@ export default function NewsSection() {
             {/* มือถือ: เลื่อนซ้าย-ขวาแบบ snap แทน stack เต็มความกว้างทีละใบ (การ์ดสูงเพราะมีรูป ทำให้
                 หน้ายาวมากถ้า stack) — จอ md ขึ้นไปกลับไปใช้ grid ปกติเหมือนเดิม ไม่กระทบ desktop */}
             <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0 md:pb-0 md:grid md:grid-cols-2 md:gap-8 md:overflow-visible">
-              {visibleNews.map((item, index) => (
+              {latestNews.map((item, index) => (
                 <Link key={item.id} to={`/news/${item.id}`} className="shrink-0 w-[85%] snap-center md:w-auto md:shrink">
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
