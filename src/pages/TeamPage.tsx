@@ -49,7 +49,7 @@ export default function TeamPage() {
         {chairmen.length > 0 && (
           <div className="mb-32">
             <h2 className="text-3xl font-black tracking-tighter mb-12 uppercase border-b border-white/10 pb-4">ประธานพรรค</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 gap-12">
               {chairmen.map((member) => (
                 <motion.div
                   key={member.id}
