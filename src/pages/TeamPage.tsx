@@ -61,7 +61,7 @@ export default function TeamPage() {
                     to={`/team/${member.id}`}
                     className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
                   >
-                    <div className="w-48 h-48 rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
+                    <div className="w-full md:w-64 aspect-square rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
                       {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
                     </div>
                     <div>
@@ -94,7 +94,7 @@ export default function TeamPage() {
                     to={`/team/${member.id}`}
                     className="group bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center hover:border-brand-neon/40 hover:bg-white/[0.07] transition-colors"
                   >
-                    <div className="w-48 h-48 rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
+                    <div className="w-full md:w-64 aspect-square rounded-3xl overflow-hidden shrink-0 border border-white/10 bg-white/5 flex items-center justify-center">
                       {member.image ? <img src={member.image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" loading="lazy" /> : <User size={48} strokeWidth={1} className="text-white/15" />}
                     </div>
                     <div>
