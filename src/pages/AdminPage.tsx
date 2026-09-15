@@ -44,7 +44,7 @@ const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
 // ไม่ต้องเพิ่มปุ่มสิทธิ์ใหม่ใน .env
 const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings', analytics: 'settings' };
 
-const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', date: '', image: '', category: '', published: true, publishAt: '', unpublishAt: '' };
+const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', date: '', image: '', gallery: [], category: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_POLICY: Omit<Policy, 'id'> = { title: '', description: '', icon: 'BookOpen', iconImage: '', color: '#E6FF00', published: true, publishAt: '', unpublishAt: '', featuredHome: false };
 const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', content: '', category: 'leader', published: true, featuredHome: false };
@@ -689,6 +689,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'content', label: 'เนื้อหาเต็ม', type: 'textarea', maxLength: 20000 },
       { key: 'date', label: 'วันที่แสดง', type: 'text' },
       { key: 'image', label: 'รูปภาพ — แนะนำแนวนอน 16:9 อย่างน้อย 1600×900px ไม่เกิน 5MB', type: 'image-upload' },
+      { key: 'gallery', label: 'แกลเลอรี่รูปเพิ่มเติม (แสดงเป็นแถบเลื่อนใต้เนื้อหาข่าว — ไม่บังคับ สูงสุด 12 รูป)', type: 'image-list', max: 12 },
       {
         key: 'category', label: 'หมวดหมู่', type: 'select',
         options: Array.from(new Set([

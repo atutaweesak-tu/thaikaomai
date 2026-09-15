@@ -83,8 +83,8 @@ export default function NewsDetailPage() {
 
           {/* Cover Image */}
           {article.image && (
-            <div className="aspect-[21/9] rounded-[40px] overflow-hidden border border-white/10 mb-10">
-              <img src={article.image} alt={article.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <div className="rounded-[40px] overflow-hidden border border-white/10 mb-10">
+              <img src={article.image} alt={article.title} className="w-full h-auto" referrerPolicy="no-referrer" />
             </div>
           )}
 
@@ -122,6 +122,32 @@ export default function NewsDetailPage() {
           <div className="text-white/70 text-lg leading-relaxed whitespace-pre-wrap">
             {article.content}
           </div>
+
+          {/* Gallery */}
+          {article.gallery && article.gallery.length > 0 && (
+            <div className="mt-12">
+              <h2 className="text-xl font-black mb-6">ภาพเพิ่มเติม</h2>
+              <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {article.gallery.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group shrink-0 w-[70%] sm:w-[45%] md:w-[32%] snap-center aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-white/5"
+                  >
+                    <img
+                      src={url}
+                      alt={`${article.title} ภาพที่ ${i + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Share */}
           <div className="mt-12 pt-8 border-t border-white/10">

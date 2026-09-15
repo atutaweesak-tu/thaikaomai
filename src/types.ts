@@ -42,6 +42,7 @@ export interface NewsItem extends AuditFields {
   content: string;
   date: string;
   image: string;
+  gallery?: string[];
   category: string;
   published?: boolean;
   publishAt?: string;
