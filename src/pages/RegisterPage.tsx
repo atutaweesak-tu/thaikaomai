@@ -83,7 +83,18 @@ export default function RegisterPage() {
               <ExternalLink size={22} />
             </a>
             <p className="mt-4 text-white/40 text-sm">
-              คุณจะถูกนำไปยังเว็บไซต์อย่างเป็นทางการของพรรคไทยก้าวใหม่
+              หรือ{' '}
+              <a
+                href="https://party.ect.go.th/services/member-check"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-brand-neon hover:text-brand-accent"
+              >
+                คลิกที่นี่
+              </a>{' '}
+              เพื่อตรวจสอบว่าเป็นสมาชิกของพรรคการเมืองใดอยู่หรือไม่
+              <br />
+              หมายเหตุ หากท่านเป็นสมาชิกพรรคการเมืองอื่นอยู่ จะไม่สามารถสมัครสมาชิกพรรคได้
             </p>
           </div>
         </motion.div>
