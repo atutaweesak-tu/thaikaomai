@@ -164,19 +164,21 @@ export default function NewsPage() {
                   className="group"
                 >
                   <Link to={`/news/${item.id}`}>
-                    <div className="aspect-[21/9] rounded-[40px] overflow-hidden mb-8 border border-white/10 bg-white/5 flex items-center justify-center">
-                      {item.image ? (
+                    {item.image ? (
+                      <div className="rounded-[40px] overflow-hidden mb-8 border border-white/10">
                         <img
                           src={item.image}
                           alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          className="w-full h-auto group-hover:scale-105 transition-transform duration-700"
                           referrerPolicy="no-referrer"
                           loading="lazy"
                         />
-                      ) : (
+                      </div>
+                    ) : (
+                      <div className="aspect-[21/9] rounded-[40px] overflow-hidden mb-8 border border-white/10 bg-white/5 flex items-center justify-center">
                         <Newspaper size={48} strokeWidth={1} className="text-white/15" />
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </Link>
                   <div className="flex items-center gap-4 mb-6">
                     <span className="bg-brand-neon text-brand-navy text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
