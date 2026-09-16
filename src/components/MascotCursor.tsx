@@ -25,7 +25,7 @@ export default function MascotCursor({
           alt=""
           aria-hidden="true"
           className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-1/2"
-          style={{ left: pos.x, top: pos.y, width: size, height: size }}
+          style={{ left: pos.x, top: pos.y, height: size, width: 'auto' }}
         />
       )}
     </div>
