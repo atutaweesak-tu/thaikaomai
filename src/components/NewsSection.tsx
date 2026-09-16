@@ -8,6 +8,7 @@ import { NewsItem, EventItem } from '../types';
 import { upcomingEvents, dateBadgeParts } from '../utils/events';
 import AccentUnderline from './AccentUnderline';
 import SectionEyebrow from './SectionEyebrow';
+import MascotCursor from './MascotCursor';
 
 export default function NewsSection() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -118,7 +119,7 @@ export default function NewsSection() {
                   ยังไม่มีกิจกรรมที่กำหนดการในขณะนี้ — ติดตามประกาศจากพรรคเร็วๆ นี้
                 </p>
               ) : (
-                <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block md:space-y-8 md:overflow-visible md:pb-0">
+                <MascotCursor src="/nong-lemon-cursor.gif" className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block md:space-y-8 md:overflow-visible md:pb-0">
                   {visibleEvents.map((event) => {
                     const [d1, d2] = dateBadgeParts(event.date);
                     return (
@@ -156,7 +157,7 @@ export default function NewsSection() {
                       </Link>
                     );
                   })}
-                </div>
+                </MascotCursor>
               )}
 
               <Link to="/news" className="neon-button w-full justify-center mt-12">
