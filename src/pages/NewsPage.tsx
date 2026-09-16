@@ -9,6 +9,7 @@ import { NewsCardSkeleton } from '../components/Skeleton';
 import Honeypot from '../components/Honeypot';
 import YouTubeEmbed from '../components/YouTubeEmbed';
 import { upcomingEvents } from '../utils/events';
+import MascotCursor from '../components/MascotCursor';
 
 export default function NewsPage() {
   const [news, setNews] = useState<NewsItem[]>(FALLBACK_NEWS);
@@ -207,7 +208,7 @@ export default function NewsPage() {
                     ยังไม่มีกิจกรรมที่กำหนดการในขณะนี้ — ติดตามประกาศจากพรรคเร็วๆ นี้
                   </p>
                 ) : (
-                  <div className="space-y-6">
+                  <MascotCursor src="/nong-lemon-cursor.gif" className="space-y-6">
                     {visibleEvents.map((event) => (
                       <div key={event.id} className="group bg-white/5 border border-white/10 rounded-3xl p-6 hover:bg-white/10 hover:border-brand-neon/30 transition-all">
                         <div className="flex items-center gap-3 text-brand-neon font-bold text-sm mb-4">
@@ -238,7 +239,7 @@ export default function NewsPage() {
                         </Link>
                       </div>
                     ))}
-                  </div>
+                  </MascotCursor>
                 )}
               </div>
 
