@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { PageBlock } from '../types';
 import { openSafeUrl } from '../utils/safeUrl';
+import MascotCursor from './MascotCursor';
 
 // key?: ไม่ได้ใช้จริงในตัว component — ใส่ไว้เฉยๆ เพราะโปรเจกต์นี้ไม่มี @types/react
 // TS เลยไม่รู้ว่า "key" เป็น prop พิเศษที่ JSX อนุญาตเสมอ (ต่างจาก component อื่นที่ไม่มี props เลยเลยไม่ชนปัญหานี้)
@@ -47,42 +48,47 @@ export default function PromoBannerBlock({ block }: { block: PageBlock; key?: st
           className={`overflow-hidden rounded-[40px] border border-white/10 bg-white/5 grid grid-cols-1 items-center ${imgs.length ? 'md:grid-cols-2' : ''}`}
         >
           {imgs.length > 0 && (
-            <div
+            <MascotCursor
+              src="/nong-lemon-cursor.gif"
               className="relative aspect-[16/9] md:aspect-auto md:h-full md:min-h-[320px] bg-brand-navy"
-              onMouseEnter={() => setPaused(true)}
-              onMouseLeave={() => setPaused(false)}
-              onFocus={() => setPaused(true)}
-              onBlur={() => setPaused(false)}
             >
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={idx}
-                  src={cur}
-                  alt={block.title || ''}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.6 }}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                  loading={idx === 0 ? 'eager' : 'lazy'}
-                />
-              </AnimatePresence>
+              <div
+                className="absolute inset-0"
+                onMouseEnter={() => setPaused(true)}
+                onMouseLeave={() => setPaused(false)}
+                onFocus={() => setPaused(true)}
+                onBlur={() => setPaused(false)}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={idx}
+                    src={cur}
+                    alt={block.title || ''}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                  />
+                </AnimatePresence>
 
-              {imgs.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                  {imgs.map((_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      aria-label={`ไปสไลด์ที่ ${i + 1}`}
-                      onClick={() => setIdx(i)}
-                      className={`h-2 rounded-full transition-all ${i === idx ? 'w-6 bg-brand-neon' : 'w-2 bg-white/50 hover:bg-white/80'}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+                {imgs.length > 1 && (
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                    {imgs.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-label={`ไปสไลด์ที่ ${i + 1}`}
+                        onClick={() => setIdx(i)}
+                        className={`h-2 rounded-full transition-all ${i === idx ? 'w-6 bg-brand-neon' : 'w-2 bg-white/50 hover:bg-white/80'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </MascotCursor>
           )}
 
           <div className="p-10 md:p-16">
