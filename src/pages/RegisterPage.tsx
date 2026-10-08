@@ -74,7 +74,7 @@ export default function RegisterPage() {
           {/* Register Button */}
           <div className="text-center">
             <a
-              href="https://www.thaikaomai.or.th/register"
+              href="https://new.thaikaomai.or.th/register"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 bg-brand-neon text-brand-navy font-black text-lg px-12 py-5 rounded-full hover:bg-brand-accent transition-colors duration-200"
