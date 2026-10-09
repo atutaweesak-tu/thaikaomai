@@ -14,19 +14,23 @@
     <meta name="keywords" content="ไทยก้าวใหม่, พรรคการเมือง, นโยบาย, ธนู4ดอก, สุชัชวีร์, การศึกษา, เศรษฐกิจ" />
     <meta name="author" content="พรรคไทยก้าวใหม่" />
     <meta name="robots" content="index, follow" />
+    <!-- canonical/og:url ถูกแทนด้วย URL ของหน้านั้นจริงตอน server render (server/api.ts renderSpaHtml) -->
+    <link rel="canonical" href="https://www.thaikaomai.or.th/" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph (crawler ของ Facebook/LINE ต้องการ URL เต็ม ไม่รับ path สั้น) -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="พรรคไทยก้าวใหม่" />
+    <meta property="og:url" content="https://www.thaikaomai.or.th/" />
     <meta property="og:title" content="พรรคไทยก้าวใหม่ — ก้าวใหม่ให้ไทยสตรอง" />
     <meta property="og:description" content="พรรคไทยก้าวใหม่ มุ่งมั่นสร้างประเทศไทยที่ดีกว่าด้วยนโยบายธนู 4 ดอก" />
-    <meta property="og:image" content="/tkm-logo.png" />
+    <meta property="og:image" content="https://www.thaikaomai.or.th/tkm-logo.png" />
     <meta property="og:locale" content="th_TH" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="พรรคไทยก้าวใหม่ — ก้าวใหม่ให้ไทยสตรอง" />
     <meta name="twitter:description" content="พรรคไทยก้าวใหม่ มุ่งมั่นสร้างประเทศไทยที่ดีกว่าด้วยนโยบายธนู 4 ดอก" />
-    <meta name="twitter:image" content="/tkm-logo.png" />
+    <meta name="twitter:image" content="https://www.thaikaomai.or.th/tkm-logo.png" />
 
     <!-- Theme Color -->
     <meta name="theme-color" content="#0a0f1e" />

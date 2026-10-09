@@ -951,6 +951,21 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     const host = req.headers.host || '';
     const urlPath = (req.url || '').split('?')[0];
 
+    // path ที่ไม่มีหน้าจริง (หรือข่าว/ทีม/กิจกรรมที่ไม่มีหรือยังไม่เผยแพร่) ตอบ 404 + noindex — เดิมตอบ 200
+    // ทุก path ทำให้ Google มองเป็น soft 404 และเก็บ URL มั่วๆ เข้า index ได้ ยังส่ง HTML ตัวเดิม
+    // ให้ SPA แสดงหน้า NotFound เอง (admin ที่ login อยู่ก็ยังเห็น preview ของที่ยังไม่เผยแพร่ได้ตามเดิม
+    // เพราะ status code ไม่มีผลกับการ render ฝั่ง client)
+    if (!isKnownSpaPath(urlPath)) {
+      res.statusCode = 404;
+      html = html.replace(/(<meta name="robots" content=")[^"]*(")/, '$1noindex$2')
+        .replace(/\s*<link rel="canonical"[^>]*>/, '');
+    } else {
+      const pageUrl = escapeHtml(`https://${host}${urlPath.replace(/(.)\/+$/, '$1')}`);
+      html = html
+        .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${pageUrl}$2`)
+        .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${pageUrl}$2`);
+    }
+
     const newsMatch = urlPath.match(/^\/news\/([^/]+)\/?$/);
     if (newsMatch) {
       const item = readCollection('news').find((n: any) => n.id === newsMatch[1]);
@@ -1037,6 +1052,20 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     } catch { /* settings.json แปลกๆ — ข้าม JSON-LD องค์กรไปเฉยๆ ไม่ทำให้หน้าเว็บพังทั้งหน้า */ }
 
     res.end(html);
+  }
+
+  // ต้องตรงกับ <Route> ใน src/App.tsx — เพิ่มหน้าใหม่ที่นั่นแล้วต้องเพิ่มที่นี่ด้วย ไม่งั้นหน้านั้นจะตอบ 404
+  const SPA_STATIC_PATHS = ['/', '/about', '/policies', '/team', '/news', '/polls', '/contact', '/volunteer', '/privacy', '/register', '/admin'];
+  const SPA_DETAIL_COLLECTIONS: Record<string, string> = { news: 'news', team: 'team', events: 'events' };
+
+  function isKnownSpaPath(urlPath: string): boolean {
+    const p = urlPath.length > 1 ? urlPath.replace(/\/+$/, '') : urlPath;
+    if (SPA_STATIC_PATHS.includes(p)) return true;
+    const m = p.match(/^\/(news|team|events)\/([^/]+)$/);
+    if (!m) return false;
+    let id = m[2];
+    try { id = decodeURIComponent(id); } catch { return false; }
+    return readCollection(SPA_DETAIL_COLLECTIONS[m[1]]).some((item: any) => item.id === id && isPublicNow(item));
   }
 
   // ── sitemap.xml — generate สดจากข่าวที่เผยแพร่จริง (เนื้อหาเปลี่ยนตลอดผ่าน admin ทำเป็น static ไม่ได้) ──
