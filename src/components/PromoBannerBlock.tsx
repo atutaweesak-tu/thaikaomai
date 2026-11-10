@@ -39,18 +39,18 @@ export default function PromoBannerBlock({ block }: { block: PageBlock; key?: st
   const cur = imgs[Math.min(idx, imgs.length - 1)] || '';
 
   return (
-    <section className="py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-12 md:py-16">
+      <div className="uf-container">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className={`overflow-hidden rounded-[40px] border border-white/10 bg-white/5 grid grid-cols-1 items-center ${imgs.length ? 'md:grid-cols-2' : ''}`}
+          className={`uf-card overflow-hidden !rounded-[32px] grid grid-cols-1 items-center ${imgs.length ? 'md:grid-cols-2' : ''}`}
         >
           {imgs.length > 0 && (
             <MascotCursor
               src="/nong-lemon-cursor.gif"
-              className="relative aspect-[16/9] md:aspect-auto md:h-full md:min-h-[320px] bg-brand-navy"
+              className="relative aspect-[16/9] md:aspect-auto md:h-full md:min-h-[320px] bg-uf-surface"
             >
               <div
                 className="absolute inset-0"

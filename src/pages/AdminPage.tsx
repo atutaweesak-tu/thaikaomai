@@ -4,12 +4,16 @@ import {
   Plus, Pencil, Trash2, Save, X, Database, Newspaper,
   Calendar, BookOpen, Users, Mail, MessageSquare, LogIn,
   AlertTriangle, Eye, EyeOff, ShieldCheck, UserPlus, LogOut, Settings,
-  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate, BarChart3, Vote
+  ChevronUp, ChevronDown, Heart, Phone, LayoutTemplate, BarChart3, Vote, Youtube, Instagram, Pin
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import {
   subscribeToNews, addNews, updateNews, deleteNews,
   subscribeToEvents, addEvent, updateEvent, deleteEvent,
+  subscribeToVideos, addVideo, updateVideo, deleteVideo,
+  subscribeToInstagram, addInstagram, updateInstagram, deleteInstagram,
+  fetchInstagramStatus, verifyInstagramApi, syncInstagramApi, InstagramApiStatus,
+  fetchYouTubeSyncStatus, saveYouTubeSyncConfig, runYouTubeSync, YouTubeSyncStatus,
   subscribeToPolicies, addPolicy, updatePolicy, deletePolicy,
   subscribeToTeam, addTeamMember, updateTeamMember, deleteTeamMember,
   subscribeToPolls, addPoll, updatePoll, deletePoll,
@@ -21,12 +25,16 @@ import {
   subscribeToAdminAccounts, addAdminAccount, updateAdminAccount, deleteAdminAccount,
   seedInitialData, fetchAnalytics,
 } from '../services/dataService';
-import { NewsItem, EventItem, Policy, TeamMember, Poll, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData, PopupItem } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, Poll, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, TextStyle, HeroSlide, AdminAccount, AnalyticsData, PopupItem, VideoItem, InstagramItem } from '../types';
+import { extractYouTubeId } from '../utils/youtube';
+import { isSafeHttpUrl } from '../utils/safeUrl';
+import { parseInstagramUrl, normalizeInstagramProfile, OFFICIAL_INSTAGRAM_PROFILE } from '../utils/instagram';
 import { POLICIES, TEAM, NEWS, EVENTS, DEFAULT_HOME_BLOCKS } from '../constants';
 import ImageUploadField from '../components/ImageUploadField';
-import { themeCssVars, normalizeTheme } from '../lib/theme';
+import { applyTheme } from '../lib/theme';
+import { BLOCK_TYPE_LABELS, SECTION_TYPES, LEGACY_EXPANSION, planSectionSplit } from '../utils/homeBlocks';
 
-type Tab = 'news' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'polls' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings' | 'analytics';
+type Tab = 'news' | 'videos' | 'instagram' | 'events' | 'policies' | 'team' | 'homeBlocks' | 'polls' | 'newsletter' | 'contact' | 'volunteer' | 'users' | 'settings' | 'analytics';
 
 // ค่า default ของแท็บที่ admin ธรรมดา (role='admin') ได้ ถ้าตอนสร้างบัญชีไม่ได้เลือกแท็บเอง —
 // ตรงกับ DEFAULT_ADMIN_TABS ฝั่ง server (server/api.ts) คือทุกแท็บยกเว้น users/settings
@@ -34,7 +42,7 @@ const DEFAULT_ADMIN_TABS_CLIENT: Tab[] = ['news', 'events', 'policies', 'team', 
 
 // จัดกลุ่มแท็บให้เห็นเป็นหมวดหมู่ชัดเจนในแถบเมนู — ไม่กระทบ logic ด้านใน แค่จัดการแสดงผล
 const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
-  { label: 'เนื้อหาเว็บ', tabs: ['news', 'events', 'policies', 'team', 'homeBlocks', 'polls'] },
+  { label: 'เนื้อหาเว็บ', tabs: ['news', 'videos', 'instagram', 'events', 'policies', 'team', 'homeBlocks', 'polls'] },
   { label: 'ข้อมูลติดต่อ', tabs: ['newsletter', 'contact', 'volunteer'] },
   { label: 'ระบบ', tabs: ['users', 'settings', 'analytics'] },
 ];
@@ -42,9 +50,12 @@ const TAB_GROUPS: { label: string; tabs: Tab[] }[] = [
 // homeBlocks/analytics ไม่ใช่แท็บสิทธิ์จริงฝั่ง server (COLLECTION_TAB['homeblocks'] = 'settings', และ
 // GET /api/analytics ใช้ requireTab(...,'settings') เดียวกัน) — ทั้งสองใช้สิทธิ์ระดับ "ตั้งค่าเว็บ" แทน
 // ไม่ต้องเพิ่มปุ่มสิทธิ์ใหม่ใน .env
-const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings', analytics: 'settings' };
+// คลิปวิดีโอ/Instagram ใช้สิทธิ์แท็บข่าว (ฝั่ง server: COLLECTION_TAB.videos/instagram = 'news') — ไม่เพิ่มสิทธิ์ใหม่
+const TAB_PERMISSION: Partial<Record<Tab, string>> = { homeBlocks: 'settings', analytics: 'settings', videos: 'news', instagram: 'news' };
 
 const EMPTY_NEWS: Omit<NewsItem, 'id'> = { title: '', summary: '', content: '', date: '', image: '', gallery: [], category: '', published: true, publishAt: '', unpublishAt: '' };
+const EMPTY_VIDEO: Omit<VideoItem, 'id'> = { url: '', title: '', type: 'video', category: '', date: '', featured: false, pinned: false, published: true, publishAt: '', unpublishAt: '' };
+const EMPTY_INSTAGRAM: Omit<InstagramItem, 'id'> = { url: '', kind: 'post', mediaType: 'image', title: '', cover: '', pinned: false, published: true, publishAt: '', unpublishAt: '', source: 'manual' };
 const EMPTY_EVENT: Omit<EventItem, 'id'> = { title: '', date: '', location: '', time: '', published: true, publishAt: '', unpublishAt: '' };
 const EMPTY_POLICY: Omit<Policy, 'id'> = { title: '', description: '', icon: 'BookOpen', iconImage: '', color: '#E6FF00', published: true, publishAt: '', unpublishAt: '', featuredHome: false };
 const EMPTY_MEMBER: Omit<TeamMember, 'id'> = { name: '', role: '', image: '', bio: '', content: '', category: 'leader', published: true, featuredHome: false };
@@ -76,10 +87,6 @@ const HERO_LINK_OPTIONS = [
   { value: '/volunteer', label: 'อาสาสมัคร' },
   { value: '/register', label: 'สมัครสมาชิก' },
 ];
-const BLOCK_TYPE_LABELS: Record<string, string> = {
-  hero: 'Hero (ส่วนหัว)', policies: 'นโยบาย (ธนู 4 ดอก)', team: 'ทีมพรรค',
-  news: 'ข่าวสาร & กิจกรรม', cta: 'ชวนสมัครสมาชิก (CTA)', promo: 'แบนเนอร์โปรโมท',
-};
 
 export default function AdminPage() {
   const { user, profile, login, logout } = useAuth();
@@ -95,6 +102,18 @@ export default function AdminPage() {
   // Data
   const [news, setNews] = useState<NewsItem[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [instagram, setInstagram] = useState<InstagramItem[]>([]);
+  const [igProfileDraft, setIgProfileDraft] = useState<string | null>(null);
+  const [igProfileMsg, setIgProfileMsg] = useState('');
+  const [igStatus, setIgStatus] = useState<InstagramApiStatus | null>(null);
+  const [igBusy, setIgBusy] = useState(false);
+  const [igApiMsg, setIgApiMsg] = useState('');
+  const [ytStatus, setYtStatus] = useState<YouTubeSyncStatus | null>(null);
+  const [ytChannelDraft, setYtChannelDraft] = useState<string | null>(null);
+  const [ytIdDraft, setYtIdDraft] = useState<string | null>(null);
+  const [ytBusy, setYtBusy] = useState(false);
+  const [ytMsg, setYtMsg] = useState('');
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
@@ -148,6 +167,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     const unsubs = [
       subscribeToNews(setNews),
       subscribeToEvents(setEvents),
+      subscribeToVideos(setVideos),
+      subscribeToInstagram(setInstagram),
       subscribeToPolicies(setPolicies),
       subscribeToTeam(setTeam),
       subscribeToPolls(setPolls),
@@ -172,6 +193,21 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     if (!hasTabPermission(tab)) setTab(allowedTabs[0] as Tab);
   }, [isAdmin, tab, allowedTabs.join(',')]);
 
+  // สถานะ YouTube sync — โหลดเมื่อเปิดแท็บคลิป แล้วรีเฟรชทุก 30 วิ ระหว่างเปิดแท็บ (อ่านไฟล์สถานะฝั่ง server ไม่ได้เรียก YouTube)
+  useEffect(() => {
+    if (tab !== 'videos' || !hasTabPermission('videos')) return;
+    const load = () => fetchYouTubeSyncStatus().then(setYtStatus).catch(() => {});
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, [tab]);
+
+  // สถานะ Instagram API โหลดเมื่อเปิดแท็บ Instagram (ไม่ poll)
+  useEffect(() => {
+    if (tab !== 'instagram' || !hasTabPermission('instagram')) return;
+    fetchInstagramStatus().then(setIgStatus).catch(() => setIgStatus(null));
+  }, [tab]);
+
   // โหลดสถิติเมื่อเปิดแท็บ "สถิติ" หรือเปลี่ยนช่วงวัน — ไม่ต้อง poll ต่อเนื่องเหมือน collection อื่น
   // (ข้อมูลนับสด flush ทุก 5 นาทีฝั่ง server อยู่แล้ว ไม่จำเป็นต้อง fetch ถี่กว่านั้น)
   useEffect(() => {
@@ -186,10 +222,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
   // พรีวิวธีมสด ๆ ในหน้า admin เมื่อกดปุ่มเลือก (ผู้เข้าชมเห็นหลังกด "บันทึกทั้งหมด")
   useEffect(() => {
-    const el = document.documentElement;
-    const vars = themeCssVars(siteSettings.theme);
-    for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v);
-    el.dataset.accent = normalizeTheme(siteSettings.theme).accentLevel;
+    applyTheme(siteSettings.theme);
   }, [siteSettings.theme]);
 
   const handleSaveSettings = async () => {
@@ -399,6 +432,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       for (const item of tabData) {
         if (tab === 'news') await updateNews(item.id, { published });
         else if (tab === 'events') await updateEvent(item.id, { published });
+        else if (tab === 'videos') await updateVideo(item.id, { published });
+        else if (tab === 'instagram') await updateInstagram(item.id, { published });
         else if (tab === 'policies') await updatePolicy(item.id, { published });
         else if (tab === 'team') await updateTeamMember(item.id, { published });
         else if (tab === 'homeBlocks') await updateHomeBlock(item.id, { published });
@@ -413,6 +448,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     try {
       if (tab === 'news') await updateNews(item.id, { published });
       else if (tab === 'events') await updateEvent(item.id, { published });
+      else if (tab === 'videos') await updateVideo(item.id, { published });
+      else if (tab === 'instagram') await updateInstagram(item.id, { published });
       else if (tab === 'policies') await updatePolicy(item.id, { published });
       else if (tab === 'team') await updateTeamMember(item.id, { published });
       else if (tab === 'homeBlocks') await updateHomeBlock(item.id, { published });
@@ -499,6 +536,9 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const openAdd = () => {
     const emptyMap: Record<string, any> = {
       news: { ...EMPTY_NEWS }, events: { ...EMPTY_EVENT },
+      // คลิปใหม่ขึ้นลำดับแรก (order น้อยสุด − 1) — section ชื่อ "คลิปล่าสุด" จึงต้องเอาของใหม่ไว้หน้า; ยังเลื่อนขึ้น-ลงเองได้
+      videos: { ...EMPTY_VIDEO, order: videos.length ? Math.min(...videos.map(v => v.order ?? 0)) - 1 : 0 },
+      instagram: { ...EMPTY_INSTAGRAM, order: instagram.length ? Math.min(...instagram.map(v => v.order ?? 0)) - 1 : 0 },
       policies: { ...EMPTY_POLICY }, team: { ...EMPTY_MEMBER },
       homeBlocks: { ...EMPTY_PROMO_BLOCK, order: homeBlocks.length ? Math.max(...homeBlocks.map(b => b.order ?? 0)) + 1 : 0 },
     };
@@ -516,15 +556,27 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     const savedTab = modal.activeTab;
     try {
       const { id, ...rest } = modal.data;
+      if (savedTab === 'videos' && !extractYouTubeId(rest.url)) throw new Error('ลิงก์ YouTube ไม่ถูกต้อง — ใช้ลิงก์แบบ youtube.com/watch?v=…, youtu.be/…, หรือ youtube.com/shorts/…');
+      if (savedTab === 'instagram') {
+        // ตรวจซ้ำฝั่ง server (validateInstagramPayload) — ที่นี่แค่แจ้งเร็ว + ตั้ง kind ตาม URL
+        const ref = parseInstagramUrl(rest.url);
+        if (!ref) throw new Error('ลิงก์ Instagram ไม่รองรับ — ใช้ลิงก์โพสต์ instagram.com/p/… หรือ Reels instagram.com/reel/… เท่านั้น');
+        if (!String(rest.title || '').trim()) throw new Error('กรุณาใส่ชื่อ/คำอธิบายสั้น ๆ ของโพสต์');
+        rest.kind = ref.kind;
+      }
       if (modal.mode === 'add') {
         if (savedTab === 'news') await addNews(rest);
         else if (savedTab === 'events') await addEvent(rest);
+        else if (savedTab === 'videos') await addVideo(rest);
+        else if (savedTab === 'instagram') await addInstagram(rest);
         else if (savedTab === 'policies') await addPolicy(rest);
         else if (savedTab === 'team') await addTeamMember(rest);
         else if (savedTab === 'homeBlocks') await addHomeBlock(rest);
       } else {
         if (savedTab === 'news') await updateNews(id, rest);
         else if (savedTab === 'events') await updateEvent(id, rest);
+        else if (savedTab === 'videos') await updateVideo(id, rest);
+        else if (savedTab === 'instagram') await updateInstagram(id, rest);
         else if (savedTab === 'policies') await updatePolicy(id, rest);
         else if (savedTab === 'team') await updateTeamMember(id, rest);
         else if (savedTab === 'homeBlocks') await updateHomeBlock(id, rest);
@@ -543,6 +595,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
     try {
       if (savedTab === 'news') await deleteNews(id);
       else if (savedTab === 'events') await deleteEvent(id);
+      else if (savedTab === 'videos') await deleteVideo(id);
+      else if (savedTab === 'instagram') await deleteInstagram(id);
       else if (savedTab === 'policies') await deletePolicy(id);
       else if (savedTab === 'team') await deleteTeamMember(id);
       else if (savedTab === 'homeBlocks') await deleteHomeBlock(id);
@@ -572,6 +626,12 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       } else if (savedTab === 'team') {
         await updateTeamMember(a.id, { order: bOrder });
         await updateTeamMember(b.id, { order: aOrder });
+      } else if (savedTab === 'videos') {
+        await updateVideo(a.id, { order: bOrder });
+        await updateVideo(b.id, { order: aOrder });
+      } else if (savedTab === 'instagram') {
+        await updateInstagram(a.id, { order: bOrder });
+        await updateInstagram(b.id, { order: aOrder });
       }
     } finally {
       setTab(savedTab);
@@ -642,6 +702,8 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
 
   const ALL_TABS: { key: Tab; label: string; icon: any; count?: number }[] = [
     { key: 'news', label: 'ข่าวสาร', icon: Newspaper, count: news.length },
+    { key: 'videos', label: 'คลิปวิดีโอ', icon: Youtube, count: videos.length },
+    { key: 'instagram', label: 'Instagram', icon: Instagram, count: instagram.length },
     { key: 'events', label: 'กิจกรรม', icon: Calendar, count: events.length },
     { key: 'policies', label: 'นโยบาย', icon: BookOpen, count: policies.length },
     { key: 'team', label: 'ทีมพรรค', icon: Users, count: team.length },
@@ -658,7 +720,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const TABS = ALL_TABS.filter(t => hasTabPermission(t.key));
   // ใช้เลือกสิทธิ์แท็บตอนสร้าง/แก้บัญชีผู้ดูแล — ตัด homeBlocks/analytics ออกเพราะไม่ใช่แท็บสิทธิ์จริงฝั่ง server
   // (ทั้งคู่ map ไปที่สิทธิ์ 'settings' ผ่าน TAB_PERMISSION ด้านบน ไม่ใช่ key สิทธิ์ของตัวเอง)
-  const ADMIN_PERMISSION_TABS = ALL_TABS.filter(t => t.key !== 'homeBlocks' && t.key !== 'analytics');
+  const ADMIN_PERMISSION_TABS = ALL_TABS.filter(t => t.key !== 'homeBlocks' && t.key !== 'analytics' && t.key !== 'videos' && t.key !== 'instagram');
 
   // ประวัติการแก้ไข — ใช้ audit fields (createdBy/updatedBy/updatedAt) ที่ทุก item มีอยู่แล้ว ไม่ต้องเก็บ
   // ข้อมูลเพิ่ม แค่รวม 4 collection ที่ subscribe ไว้อยู่แล้วเป็นลิสต์เดียวแล้วเรียงตามเวลาแก้ไขล่าสุด
@@ -679,8 +741,10 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
   const sortedCategories = [...categories].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedHomeBlocks = [...homeBlocks].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
   const sortedTeam = [...team].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  const currentData: Record<string, any[]> = { news, events, policies: sortedPolicies, team: sortedTeam, homeBlocks: sortedHomeBlocks, newsletter, contact, volunteer };
-  const canEdit = ['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && hasTabPermission(tab);
+  const sortedVideos = [...videos].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  const sortedInstagram = [...instagram].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  const currentData: Record<string, any[]> = { news, videos: sortedVideos, instagram: sortedInstagram, events, policies: sortedPolicies, team: sortedTeam, homeBlocks: sortedHomeBlocks, newsletter, contact, volunteer };
+  const canEdit = ['news', 'videos', 'instagram', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && hasTabPermission(tab);
 
   const fieldConfig: Record<string, { key: string; label: string; type: string; maxLength?: number; options?: string[]; optionLabels?: string[]; max?: number }[]> = {
     news: [
@@ -703,6 +767,28 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
       { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
       { key: 'seoTitle', label: 'SEO: หัวข้อสำหรับ Google/แชร์โซเชียล (ไม่บังคับ — ว่างไว้ใช้หัวข้อข่าวแทน)', type: 'text', maxLength: 200 },
       { key: 'seoDescription', label: 'SEO: คำอธิบายสำหรับ Google/แชร์โซเชียล (ไม่บังคับ — ว่างไว้ใช้สรุปข่าวแทน)', type: 'textarea', maxLength: 300 },
+    ],
+    videos: [
+      { key: 'url', label: 'ลิงก์ YouTube — youtube.com/watch?v=…, youtu.be/…, youtube.com/shorts/… หรือ /live/…', type: 'text' },
+      { key: 'title', label: 'ชื่อคลิป (แสดงบนเว็บ)', type: 'text', maxLength: 200 },
+      { key: 'type', label: 'รูปแบบ (แก้ประเภทคลิปจาก sync = ล็อกไว้ ไม่ให้ sync เปลี่ยนกลับ)', type: 'select', options: ['video', 'short', 'live', 'upcoming'], optionLabels: ['คลิปปกติ (16:9)', 'Shorts (แนวตั้ง 9:16)', 'ไลฟ์สด (LIVE)', 'ไลฟ์ที่กำลังจะมา'] },
+      { key: 'pinned', label: 'ปักหมุด — ขึ้นก่อนในแถวคลิป/Shorts', type: 'toggle' },
+      { key: 'category', label: 'หมวด (ไม่บังคับ) — เช่น ปราศรัย / นโยบาย / สัมภาษณ์ ใช้เป็นปุ่มกรอง', type: 'text', maxLength: 50 },
+      { key: 'date', label: 'วันที่เผยแพร่คลิป (ใช้เรียง + แสดงผล)', type: 'datetime' },
+      { key: 'featured', label: 'คลิปเด่น — แสดงใหญ่ในหน้าแรก (ถ้าไม่เลือก ใช้คลิปลำดับแรก)', type: 'toggle' },
+      { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
+      { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+      { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+    ],
+    instagram: [
+      { key: 'url', label: 'ลิงก์ Instagram — โพสต์ instagram.com/p/… หรือ Reels instagram.com/reel/… (ต้องเป็นโพสต์สาธารณะของบัญชีพรรค)', type: 'text' },
+      { key: 'title', label: 'ชื่อ/คำอธิบายสั้น (แสดงบนการ์ด — ระบบไม่ดึงคำบรรยายจาก Instagram)', type: 'text', maxLength: 200 },
+      { key: 'mediaType', label: 'ชนิดสื่อ (ป้ายบนการ์ด — Reels ใช้ป้าย Reels อัตโนมัติ)', type: 'select', options: ['image', 'video', 'carousel'], optionLabels: ['ภาพ', 'วิดีโอ', 'อัลบั้ม (หลายภาพ)'] },
+      { key: 'cover', label: 'รูปปกการ์ด (ไม่บังคับ) — แนะนำแนวตั้ง 4:5 (1080×1350px) · Reels 9:16 (1080×1920px) · ว่างไว้ = การ์ดแบรนด์', type: 'image-upload' },
+      { key: 'pinned', label: 'ปักหมุด — แสดงเป็นลำดับแรกในหน้าแรก', type: 'toggle' },
+      { key: 'published', label: 'สถานะการแสดงผล', type: 'toggle' },
+      { key: 'publishAt', label: 'เริ่มแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
+      { key: 'unpublishAt', label: 'หยุดแสดงวันที่ (ไม่บังคับ)', type: 'datetime' },
     ],
     events: [
       { key: 'title', label: 'ชื่อกิจกรรม', type: 'text' },
@@ -841,6 +927,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                 <label className="block text-xs font-bold text-white/50 mb-2">รูปแบบ Hero Section</label>
                 <div className="flex flex-wrap gap-2">
                   {[
+                    { value: 'cinematic', label: 'Cinematic (ข้อความ + ลูกศรพลังงาน)' },
                     { value: 'split', label: '2 คอลัมน์ (ข้อความ + รูป)' },
                     { value: 'full', label: 'รูปเต็มพื้นที่ (ข้อความซ้อนทับ)' },
                     { value: 'imageOnly', label: 'รูปเต็มพื้นที่ (ไม่มีข้อความ)' },
@@ -1125,6 +1212,33 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   <input type="text" value={siteSettings.footer.copyright} onChange={e => setFooterInfo('copyright', e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
                 </div>
+                <div className="pt-4 border-t border-white/10">
+                  <p className="text-sm font-bold mb-1">ปุ่มลิงก์คอลัมน์ขวา</p>
+                  <p className="text-xs text-white/40 mb-4">เว้นลิงก์ว่างไว้ = กลับไปแสดงฟอร์ม "ติดตามข่าวสาร" (รับอีเมล) แบบเดิม · ลิงก์เปิดในแท็บใหม่</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-white/50 mb-1">หัวข้อ</label>
+                      <input type="text" value={siteSettings.footer.ctaHeading ?? ''} onChange={e => setFooterInfo('ctaHeading', e.target.value)}
+                        placeholder="เปิดรับสมัคร"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-white/50 mb-1">ข้อความบนปุ่ม</label>
+                      <input type="text" value={siteSettings.footer.ctaLabel ?? ''} onChange={e => setFooterInfo('ctaLabel', e.target.value)}
+                        placeholder="ร่วมเป็นผู้สมัคร สส.พรรคไทยก้าวใหม่"
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-white/50 mb-1">ลิงก์ (https://...)</label>
+                      <input type="url" value={siteSettings.footer.ctaUrl ?? ''} onChange={e => setFooterInfo('ctaUrl', e.target.value)}
+                        placeholder="https://docs.google.com/forms/..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-brand-neon transition-colors" />
+                      {siteSettings.footer.ctaUrl && !isSafeHttpUrl(siteSettings.footer.ctaUrl) && (
+                        <p className="text-xs text-red-400 mt-1">ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https:// — ไม่งั้นหน้าเว็บจะแสดงฟอร์มรับข่าวสารแทน</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1398,6 +1512,34 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                         className={`relative w-12 h-6 rounded-full transition-colors ${th.showEyebrows ? 'bg-brand-neon' : 'bg-white/20'}`}>
                         <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${th.showEyebrows ? 'left-7' : 'left-1'}`} />
                       </button>
+                    </div>
+
+                    {/* โหมดสำรวม — ช่วงไว้ทุกข์/ประกาศสำคัญ */}
+                    <div className="mt-6 pt-6 border-t border-white/10">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-bold text-sm">โหมดสำรวม (ช่วงไว้ทุกข์ / ประกาศสำคัญ)</p>
+                          <p className="text-white/40 text-xs mt-0.5">เปลี่ยนสีนีออนเป็นโทนเทา-ขาว ปิดแสงเรืองและภาพเคลื่อนไหวทั้งเว็บ — เนื้อหาและการใช้งานเหมือนเดิม</p>
+                        </div>
+                        <button type="button" role="switch" aria-checked={!!th.solemn} aria-label="โหมดสำรวม"
+                          onClick={() => setSiteSettings(s => ({ ...s, theme: { ...s.theme, solemn: !s.theme.solemn, grayscale: s.theme.solemn ? false : s.theme.grayscale } }))}
+                          className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${th.solemn ? 'bg-brand-neon' : 'bg-white/20'}`}>
+                          <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${th.solemn ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+                      {th.solemn && (
+                        <div className="flex items-center justify-between gap-4 mt-4 ml-4 pl-4 border-l border-white/10">
+                          <div>
+                            <p className="font-bold text-sm">ทั้งเว็บเป็นขาวดำ</p>
+                            <p className="text-white/40 text-xs mt-0.5">รวมรูปข่าว รูปบุคคล และ<b className="text-white/60">โลโก้พรรค</b> — ตามธรรมเนียมเว็บไซต์ช่วงไว้ทุกข์ (ไม่บังคับ)</p>
+                          </div>
+                          <button type="button" role="switch" aria-checked={!!th.grayscale} aria-label="ทั้งเว็บเป็นขาวดำ"
+                            onClick={() => setTheme('grayscale', !th.grayscale)}
+                            className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${th.grayscale ? 'bg-brand-neon' : 'bg-white/20'}`}>
+                            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${th.grayscale ? 'left-7' : 'left-1'}`} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1778,7 +1920,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
               </h2>
               <div className="flex flex-wrap gap-2 items-center">
                 {/* Bulk publish/unpublish */}
-                {['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && (
+                {['news', 'videos', 'instagram', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && (
                   <>
                     <button onClick={() => handleBulkToggle(true)} disabled={bulkLoading}
                       className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 transition-all disabled:opacity-50">
@@ -1858,10 +2000,235 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
               </div>
             )}
 
+            {/* โปรไฟล์ Instagram ทางการ = settings.contact.instagram (ช่องเดียวกับ Footer/แท็บตั้งค่าเว็บ)
+                แก้ได้เฉพาะผู้มีสิทธิ์ "ตั้งค่าเว็บ" — บันทึกเฉพาะช่องนี้บนค่าล่าสุดจาก server ไม่พา draft อื่นในแท็บตั้งค่าไปด้วย */}
+            {tab === 'instagram' && (
+              <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-5">
+                <p className="text-sm font-bold text-white/60 mb-1">ลิงก์โปรไฟล์ Instagram ทางการ (ปุ่ม "ติดตามบน Instagram")</p>
+                <p className="text-xs text-white/35 mb-3">ระบบแสดงเฉพาะโพสต์ที่ใส่ลิงก์ไว้ด้านล่าง — ไม่ดึงข้อมูลจาก Instagram อัตโนมัติ · ผู้เข้าชมโหลดเนื้อหาจาก Instagram เมื่อกดเปิดโพสต์เท่านั้น</p>
+                {hasTabPermission('settings') ? (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url" value={igProfileDraft ?? (siteSettings.contact.instagram === '#' ? '' : siteSettings.contact.instagram || '')}
+                      onChange={e => { setIgProfileDraft(e.target.value); setIgProfileMsg(''); }}
+                      placeholder="https://www.instagram.com/ชื่อบัญชี/" aria-label="ลิงก์โปรไฟล์ Instagram"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-neon transition-colors"
+                    />
+                    <button
+                      type="button"
+                      disabled={igProfileDraft === null}
+                      onClick={async () => {
+                        const raw = (igProfileDraft ?? '').trim();
+                        const value = raw ? normalizeInstagramProfile(raw) : '#';
+                        if (!value) { setIgProfileMsg('ลิงก์โปรไฟล์ไม่ถูกต้อง — ใช้แบบ https://www.instagram.com/ชื่อบัญชี/'); return; }
+                        try {
+                          const fresh = await fetchSiteSettings();
+                          if (fresh === DEFAULT_SETTINGS) throw new Error('โหลดค่าตั้งค่าล่าสุดไม่สำเร็จ — ยังไม่ได้บันทึก');
+                          await updateSiteSettings({ ...fresh, contact: { ...fresh.contact, instagram: value } });
+                          setSiteSettings(s => ({ ...s, contact: { ...s.contact, instagram: value } }));
+                          setIgProfileDraft(null);
+                          setIgProfileMsg('บันทึกแล้ว');
+                        } catch (err: any) { setIgProfileMsg(err?.message || 'บันทึกไม่สำเร็จ'); }
+                      }}
+                      className="bg-brand-neon text-brand-navy font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-brand-accent transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-40"
+                    >
+                      <Save size={14} /> บันทึกลิงก์โปรไฟล์
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/70 break-all">{normalizeInstagramProfile(siteSettings.contact.instagram) || `${OFFICIAL_INSTAGRAM_PROFILE} (ค่าเริ่มต้น)`} <span className="text-white/35">(แก้ได้โดยผู้มีสิทธิ์ "ตั้งค่าเว็บ")</span></p>
+                )}
+                {igProfileMsg && <p role="status" className={`text-xs mt-2 ${igProfileMsg === 'บันทึกแล้ว' ? 'text-green-400' : 'text-red-400'}`}>{igProfileMsg}</p>}
+              </div>
+            )}
+
+            {/* ── YouTube Channel Auto Sync — API key อยู่ใน .env ฝั่ง server เท่านั้น หน้านี้เห็นแค่ "ตั้งแล้ว/ยัง" ── */}
+            {tab === 'videos' && (() => {
+              const canConfig = hasTabPermission('settings');
+              const st = ytStatus;
+              const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('th-TH') : '—');
+              const act = async (fn: () => Promise<any>, ok: string) => {
+                setYtBusy(true); setYtMsg('');
+                try { const r = await fn(); if (r && 'apiKeyConfigured' in r) setYtStatus(r); setYtMsg(ok); }
+                catch (e: any) { setYtMsg(e?.message || 'ไม่สำเร็จ'); if (e?.status && 'apiKeyConfigured' in e.status) setYtStatus(e.status); else fetchYouTubeSyncStatus().then(setYtStatus).catch(() => {}); }
+                finally { setYtBusy(false); }
+              };
+              const saveDisplay = (patch: Partial<SiteSettings['videoDisplay']>) => act(async () => {
+                const fresh = await fetchSiteSettings();
+                if (fresh === DEFAULT_SETTINGS) throw new Error('โหลดค่าตั้งค่าล่าสุดไม่สำเร็จ — ยังไม่ได้บันทึก');
+                const videoDisplay = { ...fresh.videoDisplay, ...patch };
+                await updateSiteSettings({ ...fresh, videoDisplay });
+                setSiteSettings(s => ({ ...s, videoDisplay }));
+              }, 'บันทึกการแสดงผลแล้ว');
+              const longVideos = sortedVideos.filter(v => v.type !== 'short' && extractYouTubeId(v.url));
+              const featuredId = longVideos.find(v => v.featured)?.id || '';
+              const field = 'bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-neon';
+              return (
+                <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-white/70">YouTube Channel Auto Feed</p>
+                    {st && <span className="text-xs font-bold px-3 py-1 rounded-full bg-white/10 text-white/70">{st.adapter === 'api' ? 'แหล่งข้อมูล: YouTube Data API (มี key ฝั่ง server)' : 'แหล่งข้อมูล: YouTube RSS (ไม่ต้องใช้ key)'}</span>}
+                    {st?.channelId && <span className={`text-xs font-bold px-3 py-1 rounded-full ${st.channelVerified ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-300'}`}>{st.channelVerified ? '✓ ยืนยันช่องแล้ว' : 'ยังยืนยันช่องไม่ได้ — ยังไม่นำเข้าคลิป'}</span>}
+                    {st?.running && <span className="text-xs font-bold px-3 py-1 rounded-full bg-brand-neon/20 text-brand-neon">กำลังซิงก์…</span>}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="block text-xs text-white/50" htmlFor="yt-channel">ลิงก์ช่อง YouTube (ใส่ครั้งเดียว)</label>
+                      <input id="yt-channel" className={`${field} w-full`} disabled={!canConfig}
+                        value={ytChannelDraft ?? (st?.channelInput || (siteSettings.contact.youtube !== '#' ? siteSettings.contact.youtube : ''))}
+                        onChange={e => setYtChannelDraft(e.target.value)} placeholder="https://www.youtube.com/@ชื่อช่อง" />
+                      <label className="block text-xs text-white/50" htmlFor="yt-channel-id">Channel ID (UC…) {st?.adapter === 'api' ? '— ไม่บังคับ ระบบแปลงจากลิงก์ให้' : '— จำเป็นเมื่อยังไม่มี API key: YouTube Studio › การตั้งค่า › ช่อง › การตั้งค่าขั้นสูง'}</label>
+                      <div className="flex gap-2">
+                        <input id="yt-channel-id" className={`${field} flex-1 min-w-0 font-mono`} disabled={!canConfig}
+                          value={ytIdDraft ?? (st?.channelId || '')} onChange={e => setYtIdDraft(e.target.value)} placeholder="UCxxxxxxxxxxxxxxxxxxxxxx" />
+                        {canConfig && <button type="button" disabled={ytBusy} onClick={() => act(async () => {
+                          const r = await saveYouTubeSyncConfig({
+                            channelInput: (ytChannelDraft ?? (st?.channelInput || (siteSettings.contact.youtube !== '#' ? siteSettings.contact.youtube : ''))).trim(),
+                            channelId: (ytIdDraft ?? (st?.channelId || '')).trim(),
+                          });
+                          setYtChannelDraft(null); setYtIdDraft(null);
+                          if (r.warning) throw Object.assign(new Error(r.warning), { status: r });
+                          return r;
+                        }, 'ตรวจสอบช่องและบันทึกแล้ว')}
+                          className="text-xs font-bold px-3 py-2 rounded-xl bg-brand-neon text-brand-navy hover:bg-brand-accent disabled:opacity-50 shrink-0">ตรวจสอบ & บันทึก</button>}
+                      </div>
+                      <p className="text-xs text-white/40">{st?.channelId ? <>ช่อง: {st.channelTitle || '(ยังไม่ทราบชื่อ)'}{st.channelHandle ? ` (${st.channelHandle})` : ''}{st.channelVerifiedAt ? ` · ยืนยันเมื่อ ${fmt(st.channelVerifiedAt)}` : ''}</> : 'ยังไม่ได้ตั้งช่อง'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="text-xs text-white/50 flex flex-col gap-1">Automatic Sync
+                        <select className={field} disabled={!canConfig || ytBusy} value={st?.autoSync ? 'on' : 'off'} onChange={e => act(() => saveYouTubeSyncConfig({ autoSync: e.target.value === 'on' }), 'บันทึกแล้ว')}>
+                          <option value="off">ปิด</option><option value="on">เปิด</option>
+                        </select>
+                      </label>
+                      <label className="text-xs text-white/50 flex flex-col gap-1">รอบการซิงก์
+                        <select className={field} disabled={!canConfig || ytBusy} value={String(st?.intervalMinutes ?? 15)} onChange={e => act(() => saveYouTubeSyncConfig({ intervalMinutes: Number(e.target.value) as 15 | 30 | 60 }), 'บันทึกแล้ว')}>
+                          <option value="15">ทุก 15 นาที</option><option value="30">ทุก 30 นาที</option><option value="60">ทุก 60 นาที</option>
+                        </select>
+                      </label>
+                      <label className="text-xs text-white/50 flex flex-col gap-1">จำนวนคลิปสูงสุด
+                        <select className={field} disabled={!canConfig || ytBusy} value={String(siteSettings.videoDisplay.maxVideos)} onChange={e => saveDisplay({ maxVideos: Number(e.target.value) })}>
+                          {[8, 12, 24, 36, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-xs text-white/50 flex flex-col gap-1">แสดง Shorts
+                        <select className={field} disabled={!canConfig || ytBusy} value={siteSettings.videoDisplay.showShorts ? 'on' : 'off'} onChange={e => saveDisplay({ showShorts: e.target.value === 'on' })}>
+                          <option value="on">แสดง</option><option value="off">ไม่แสดง</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <label className="text-xs text-white/50 flex flex-col gap-1 max-w-xl">คลิปเด่น (Featured Video)
+                    <select className={field} disabled={!canEdit || ytBusy} value={featuredId} onChange={e => act(async () => {
+                      const id = e.target.value;
+                      for (const v of videos) if (v.featured && v.id !== id) await updateVideo(v.id, { featured: false });
+                      if (id) await updateVideo(id, { featured: true });
+                    }, 'ตั้งคลิปเด่นแล้ว')}>
+                      <option value="">อัตโนมัติ (คลิปลำดับแรก)</option>
+                      {longVideos.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
+                    </select>
+                  </label>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" disabled={ytBusy || !st?.channelId} onClick={() => act(runYouTubeSync, 'ซิงก์สำเร็จ')}
+                      className="text-xs font-bold px-4 py-2 rounded-xl bg-brand-neon text-brand-navy hover:bg-brand-accent disabled:opacity-40">ซิงก์ทันที</button>
+                    <span className="text-xs text-white/50">ซิงก์สำเร็จล่าสุด: {fmt(st?.lastSuccessAt ?? null)}{st?.lastResult ? ` · ดึง ${st.lastResult.fetched} · ใหม่ ${st.lastResult.added} · อัปเดต ${st.lastResult.updated}` : ''}</span>
+                    {st?.nextAutoSyncAt && <span className="text-xs text-white/40">รอบถัดไป ~ {fmt(st.nextAutoSyncAt)}</span>}
+                  </div>
+                  {st?.lastError && (
+                    <p role="alert" className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                      ซิงก์ล้มเหลว ({fmt(st.lastErrorAt)}{st.consecutiveFailures > 1 ? ` · ติดกัน ${st.consecutiveFailures} ครั้ง` : ''}): {st.lastError} — หน้าเว็บยังแสดงคลิปชุดเดิม
+                    </p>
+                  )}
+                  {ytMsg && <p role="status" className="text-xs text-white/70">{ytMsg}</p>}
+                  {!canConfig && <p className="text-xs text-white/35">ตั้งช่อง/Automatic Sync/การแสดงผล แก้ได้โดยผู้มีสิทธิ์ "ตั้งค่าเว็บ" · ซิงก์ทันที/คลิปเด่น ใช้สิทธิ์แท็บข่าว</p>}
+                  <p className="text-xs text-white/35">คลิปจาก sync ไม่ทับรายการที่เพิ่มเอง · คลิปที่ซ่อนจะยังซ่อนหลังซิงก์ · คลิปจาก sync ที่ลบจะไม่ถูกเพิ่มกลับ{st?.ignoredCount ? ` (${st.ignoredCount} คลิป)` : ''}</p>
+                </div>
+              );
+            })()}
+
+            {/* สถานะ Instagram API (ทางการของ Meta) — token อยู่ใน .env ฝั่ง server เท่านั้น หน้านี้เห็นแค่ว่า "ตั้งแล้ว/ยัง" */}
+            {tab === 'instagram' && (
+              <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-5">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <p className="text-sm font-bold text-white/60">ดึงโพสต์อัตโนมัติ (Instagram API)</p>
+                  {igStatus && (
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${igStatus.mode === 'api' ? 'bg-green-500/20 text-green-400' : 'bg-white/10 text-white/60'}`}>
+                      {igStatus.mode === 'api' ? 'API Mode' : 'Manual Mode'}
+                    </span>
+                  )}
+                </div>
+                {!igStatus ? (
+                  <p className="text-xs text-white/35">กำลังโหลดสถานะ…</p>
+                ) : (
+                  <ul className="text-xs text-white/50 space-y-1">
+                    <li>บัญชีเป้าหมาย: @{igStatus.expectedUsername}</li>
+                    <li>Access Token ฝั่ง server: {igStatus.tokenConfigured ? 'ตั้งแล้ว' : 'ยังไม่ได้ตั้ง — ใช้ Manual Mode (ใส่ลิงก์เองด้านล่าง)'}</li>
+                    <li>Sync: {igStatus.syncEnabled ? 'เปิด (กดจากหน้านี้เท่านั้น ไม่มีการ sync ตามเวลา)' : 'ปิด'}{igStatus.syncEnabled && ` · โพสต์ใหม่จาก sync ${igStatus.autoPublish ? 'เผยแพร่ทันที' : 'ซ่อนไว้ก่อน รอตรวจ'}`}</li>
+                    {igStatus.lastSync && <li>Sync ล่าสุด: {new Date(igStatus.lastSync.at).toLocaleString('th-TH')} · ใหม่ {igStatus.lastSync.added} · อัปเดต {igStatus.lastSync.updated}</li>}
+                  </ul>
+                )}
+                {igStatus?.tokenConfigured && hasTabPermission('settings') && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button type="button" disabled={igBusy}
+                      onClick={async () => { setIgBusy(true); setIgApiMsg(''); try { const v = await verifyInstagramApi(); setIgApiMsg(v.ok ? `ผ่าน: @${v.username} (${v.accountType})` : `ไม่ผ่าน: ${v.problems.join(' · ')}`); } catch (e: any) { setIgApiMsg(e?.message || 'ตรวจไม่สำเร็จ'); } finally { setIgBusy(false); } }}
+                      className="text-xs font-bold px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-50">ตรวจสอบบัญชี/สิทธิ์</button>
+                    {igStatus.syncEnabled && (
+                      <button type="button" disabled={igBusy}
+                        onClick={async () => { setIgBusy(true); setIgApiMsg(''); try { const r = await syncInstagramApi(); setIgApiMsg(`Sync สำเร็จ: ดึง ${r.fetched} · ใหม่ ${r.added} · อัปเดต ${r.updated}`); fetchInstagramStatus().then(setIgStatus).catch(() => {}); } catch (e: any) { setIgApiMsg(e?.message || 'sync ไม่สำเร็จ'); } finally { setIgBusy(false); } }}
+                        className="text-xs font-bold px-3 py-2 rounded-xl bg-brand-neon text-brand-navy hover:bg-brand-accent disabled:opacity-50">Sync ตอนนี้</button>
+                    )}
+                  </div>
+                )}
+                {igApiMsg && <p role="status" className="text-xs mt-2 text-white/70">{igApiMsg}</p>}
+              </div>
+            )}
+
+            {/* หน้าแรก: ทุกส่วนเปิด/ปิด/ย้ายได้ทีละส่วน — ข้อมูลแบบเดิมรวมหลายส่วนในแถวเดียว ต้องแยกก่อน (หน้าตาเหมือนเดิมหลังแยก) */}
+            {tab === 'homeBlocks' && canEdit && homeBlocks.length > 0 && (() => {
+              const legacyRows = homeBlocks.filter(b => LEGACY_EXPANSION[b.type]);
+              const missing = SECTION_TYPES.filter(t => !homeBlocks.some(b => b.type === t));
+              if (!legacyRows.length && !missing.length) return null;
+              const run = async (fn: () => Promise<void>) => {
+                setSeedingHomeBlocks(true);
+                try { await fn(); } catch (err: any) { alert(err?.message || 'บันทึกไม่สำเร็จ — ลองกดอีกครั้ง'); } finally { setSeedingHomeBlocks(false); }
+              };
+              return (
+                <div className="mb-6 bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                  {legacyRows.length > 0 ? (
+                    <p className="text-sm text-white/60">มี <b className="text-white">{legacyRows.length} แถวแบบเดิม</b> ที่รวมหลายส่วนไว้ด้วยกัน ({legacyRows.map(b => BLOCK_TYPE_LABELS[b.type]?.split(' (')[0]).join(', ')}) — กดแยกเพื่อเปิด/ปิดและย้ายตำแหน่งได้<b className="text-white">ทุกส่วน</b> · หน้าแรกจะยังเหมือนเดิมหลังแยก (ส่วนที่เดิมไม่แสดงจะถูกเพิ่มแบบ "ซ่อน")</p>
+                  ) : (
+                    <p className="text-sm text-white/60">ยังไม่มีแถวของ: {missing.map(t => BLOCK_TYPE_LABELS[t]).join(', ')} — เพิ่มแบบ "ซ่อน" ไว้ท้ายรายการ แล้วเปิด/ย้ายเองได้</p>
+                  )}
+                  <button
+                    type="button" disabled={seedingHomeBlocks}
+                    onClick={() => run(async () => {
+                      if (legacyRows.length) {
+                        const plan = planSectionSplit(homeBlocks);
+                        // เพิ่ม/จัดลำดับใหม่ก่อน แล้วค่อยลบแถวรวมเดิม — ถ้าล้มกลางทาง หน้าแรกยังมีส่วนครบ (อาจซ้ำชั่วคราว) ไม่หายไป
+                        for (const r of plan.rows) {
+                          if (r.kind === 'keep') await updateHomeBlock(r.block.id, { order: r.order });
+                          else await addHomeBlock({ ...r.block, order: r.order });
+                        }
+                        for (const id of plan.remove) await deleteHomeBlock(id);
+                      } else {
+                        let next = Math.max(...homeBlocks.map(b => b.order ?? 0)) + 1;
+                        for (const t of missing) await addHomeBlock({ type: t, order: next++, published: false });
+                      }
+                    })}
+                    className="bg-brand-neon text-brand-navy font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-brand-accent transition-colors flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-50"
+                  >
+                    <LayoutTemplate size={14} /> {seedingHomeBlocks ? 'กำลังบันทึก…' : legacyRows.length ? 'แยกเป็นส่วนย่อย' : 'เพิ่มส่วนที่ยังไม่มี'}
+                  </button>
+                </div>
+              );
+            })()}
+
             <div className="space-y-4">
               {currentData[tab].length === 0 && tab === 'homeBlocks' && (
                 <div className="text-center py-12">
-                  <p className="text-white/30 mb-4">ยังไม่มีข้อมูลลำดับหน้าแรก — กดปุ่มด้านล่างเพื่อสร้างแถวเริ่มต้นจาก 5 ส่วนที่ใช้อยู่ตอนนี้ (Hero/นโยบาย/ทีมพรรค/ข่าวสาร/CTA)</p>
+                  <p className="text-white/30 mb-4">ยังไม่มีข้อมูลลำดับหน้าแรก — กดปุ่มด้านล่างเพื่อสร้างแถวเริ่มต้น 1 แถวต่อ 1 ส่วน (เปิด/ปิด/ย้ายได้ทุกส่วน)</p>
                   {canEdit && (
                     <button
                       onClick={handleSeedHomeBlocks} disabled={seedingHomeBlocks}
@@ -1885,12 +2252,20 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   key={item.id}
                   className="flex items-start justify-between gap-4 bg-white/5 border border-white/10 rounded-2xl p-5"
                 >
+                  {tab === 'videos' && (extractYouTubeId(item.url)
+                    ? <img src={`https://i.ytimg.com/vi/${extractYouTubeId(item.url)}/mqdefault.jpg`} alt="" loading="lazy" className="w-32 aspect-video object-cover rounded-xl shrink-0 bg-white/5" />
+                    : <span className="w-32 aspect-video rounded-xl shrink-0 bg-red-500/10 text-red-400 text-xs font-bold flex items-center justify-center text-center p-2">ลิงก์ไม่ถูกต้อง</span>
+                  )}
+                  {tab === 'instagram' && (item.cover
+                    ? <img src={item.cover} alt="" loading="lazy" className="w-20 aspect-[4/5] object-cover rounded-xl shrink-0 bg-white/5" />
+                    : <span className={`w-20 aspect-[4/5] rounded-xl shrink-0 text-xs font-bold flex items-center justify-center text-center p-2 ${parseInstagramUrl(item.url) ? 'bg-white/5 text-white/30' : 'bg-red-500/10 text-red-400'}`}>{parseInstagramUrl(item.url) ? <Instagram size={22} /> : 'ลิงก์ไม่ถูกต้อง'}</span>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-lg truncate">
                       {(tab === 'homeBlocks' ? BLOCK_TYPE_LABELS[item.type] : null) || item.title || item.name || item.email || item.message?.slice(0, 60) || item.id}
                     </p>
                     <p className="text-white/40 text-sm mt-1 truncate">
-                      {item.summary || item.description || item.bio || item.role || item.location || item.email || ''}
+                      {(tab === 'instagram' && item.url) || item.summary || item.description || item.bio || item.role || item.location || item.email || ''}
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {(item.category || item.date) && (
@@ -1905,7 +2280,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           {item.type === 'promo' ? 'โปรโมท' : 'ส่วนหลัก (ลบไม่ได้)'}
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'team' || tab === 'homeBlocks') && (
+                      {(tab === 'news' || tab === 'videos' || tab === 'instagram' || tab === 'events' || tab === 'policies' || tab === 'team' || tab === 'homeBlocks') && (
                         canEdit ? (
                           <button
                             type="button"
@@ -1928,6 +2303,25 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           </span>
                         )
                       )}
+                      {tab === 'videos' && (
+                        <span className="bg-white/10 text-white/60 text-xs font-bold px-3 py-1 rounded-full">
+                          {({ short: 'Shorts', live: '● LIVE', upcoming: 'ไลฟ์ที่กำลังจะมา' } as Record<string, string>)[item.type] || 'คลิป'}{item.featured ? ' · ★ คลิปเด่น' : ''}{item.pinned ? ' · ปักหมุด' : ''}{item.source === 'youtube-sync' ? ' · sync' : ''}{item.typeLocked ? ' · ล็อกประเภท' : ''}
+                        </span>
+                      )}
+                      {tab === 'instagram' && (
+                        <span className="bg-white/10 text-white/60 text-xs font-bold px-3 py-1 rounded-full inline-flex items-center gap-1">
+                          {parseInstagramUrl(item.url)?.kind === 'reel' ? 'Reels' : ({ video: 'วิดีโอ', carousel: 'อัลบั้ม' } as Record<string, string>)[item.mediaType] || 'ภาพ'}{item.source === 'api' && ' · sync'}{item.pinned && <> · <Pin size={11} /> ปักหมุด</>}
+                        </span>
+                      )}
+                      {tab === 'videos' && item.typeUnverified && !item.typeLocked && (
+                        <span className="inline-flex items-center gap-1.5 bg-amber-500/15 text-amber-300 text-xs font-bold pl-3 pr-1 py-1 rounded-full">
+                          ประเภทยังไม่ยืนยัน
+                          {canEdit && (['video', 'short'] as const).map(t => (
+                            <button key={t} type="button" onClick={() => updateVideo(item.id, { type: t, typeConfirmed: true } as any).catch(err => alert(err?.message || 'บันทึกไม่สำเร็จ'))}
+                              className="bg-amber-500/25 hover:bg-amber-500/40 text-amber-100 rounded-full px-2 py-0.5">{t === 'short' ? 'เป็น Shorts' : 'เป็นคลิปปกติ'}</button>
+                          ))}
+                        </span>
+                      )}
                       {(tab === 'team' || tab === 'policies') && item.featuredHome && (
                         <span className="bg-brand-neon/20 text-brand-neon text-xs font-bold px-3 py-1 rounded-full">
                           ★ หน้าหลัก
@@ -1938,18 +2332,18 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                           {(item.images?.length || (item.image ? 1 : 0))} รูป
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.publishAt && (
+                      {(tab === 'news' || tab === 'videos' || tab === 'instagram' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.publishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           เริ่ม {new Date(item.publishAt).toLocaleDateString('th-TH')}
                         </span>
                       )}
-                      {(tab === 'news' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.unpublishAt && (
+                      {(tab === 'news' || tab === 'videos' || tab === 'instagram' || tab === 'events' || tab === 'policies' || tab === 'homeBlocks') && item.unpublishAt && (
                         <span className="bg-white/10 text-white/50 text-xs px-3 py-1 rounded-full">
                           หมด {new Date(item.unpublishAt).toLocaleDateString('th-TH')}
                         </span>
                       )}
                     </div>
-                    {(item.createdBy || item.updatedBy) && ['news', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && (
+                    {(item.createdBy || item.updatedBy) && ['news', 'videos', 'instagram', 'events', 'policies', 'team', 'homeBlocks'].includes(tab) && (
                       <p className="text-white/25 text-xs mt-2">
                         {item.createdBy && <>สร้างโดย {item.createdBy}</>}
                         {item.updatedBy && item.updatedBy !== item.createdBy && <> · แก้ไขล่าสุดโดย {item.updatedBy}</>}
@@ -1958,7 +2352,7 @@ const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
                   </div>
                   {canEdit && (
                     <div className="flex gap-2 shrink-0">
-                      {(tab === 'policies' || tab === 'homeBlocks' || tab === 'team') && (
+                      {(tab === 'policies' || tab === 'homeBlocks' || tab === 'team' || tab === 'videos' || tab === 'instagram') && (
                         <div className="flex flex-col gap-1">
                           <button
                             onClick={() => handleReorder(currentData[tab], index, 'up')}

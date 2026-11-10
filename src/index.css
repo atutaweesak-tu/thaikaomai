@@ -11,6 +11,16 @@
   --color-brand-accent: #D8EF00;
   --color-brand-gray: #F5F5F5;
 
+  /* ── Ultra Future 2035 (หน้าแรก + Navbar/Footer) — ดู docs/ULTRA_FUTURE_DESIGN_SYSTEM.md ── */
+  --color-uf-bg: #071326;
+  --color-uf-surface: #102D50;
+  --color-uf-lemon: #DDF34B;
+  --color-uf-cyan: #36D9F5;
+  --color-uf-text: #F7FAFF;
+  --color-uf-muted: #AEBDD3;   /* ≈ 9.6:1 บน uf-bg */
+  --color-uf-faint: #8095B2;   /* ≈ 6.0:1 บน uf-bg — ข้อความรอง/วันที่ */
+  --color-uf-line: rgba(247, 250, 255, 0.12);
+
   /* line-height ของหัวข้อใหญ่ — default ของ Tailwind (≈1) แน่นเกินไปสำหรับภาษาไทย
      ทำให้สระบน/วรรณยุกต์ของบรรทัดล่างชนบรรทัดบน (ดู หัวข้อ "ธนู 4 ดอก / นโยบายพรรค") */
   --text-4xl--line-height: 1.2;
@@ -100,3 +110,226 @@
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60;
 }
+
+/* ══ Ultra Future 2035 ═══════════════════════════════════════════════════════
+   ค่าทั้งหมด fluid ระหว่าง viewport 390px (มือถือ) → 1440px (เดสก์ท็อป) ตามสเปก
+   ห้ามใช้ bg-clip-text กับหัวข้อภาษาไทย — ตัดสระบน/วรรณยุกต์ ══ */
+
+/* 1248px content, margin 20px@390 → 96px@1440 */
+.uf-container {
+  width: 100%;
+  max-width: calc(1248px + 2 * 96px);
+  margin-inline: auto;
+  padding-inline: clamp(20px, calc(20px + (100vw - 390px) * 0.07238), 96px);
+}
+
+/* 4 คอลัมน์ gutter 12px บนมือถือ → 12 คอลัมน์ gutter 24px ตั้งแต่ 1024px */
+.uf-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (min-width: 1024px) {
+  .uf-grid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
+}
+
+/* H1 42→76 · H2 30→48 · H3 20→24 · body 15→16 — line-height เผื่อสระบน/ล่างภาษาไทย */
+.uf-h1 { font-size: clamp(42px, calc(29.37px + 3.238vw), 76px); line-height: 1.22; font-weight: 800; letter-spacing: -0.01em; }
+.uf-h2 { font-size: clamp(30px, calc(23.31px + 1.714vw), 48px); line-height: 1.3; font-weight: 800; letter-spacing: -0.005em; }
+.uf-h3 { font-size: clamp(20px, calc(18.51px + 0.381vw), 24px); line-height: 1.4; font-weight: 700; }
+.uf-body { font-size: clamp(15px, calc(14.63px + 0.095vw), 16px); line-height: 1.75; }
+
+/* ลดจากเดิม clamp(64px…120px) ~30% — วัดจริงแล้วช่องว่างระหว่าง section 200–320px บนเดสก์ท็อป */
+.uf-section { padding-block: clamp(44px, calc(28px + 4.2vw), 84px); position: relative; }
+
+.uf-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-uf-cyan);
+}
+
+/* พื้นผิวกระจก — ใช้กับการ์ด/แผงที่ลอยอยู่บนพื้น navy */
+.uf-glass {
+  background: linear-gradient(160deg, rgba(16, 45, 80, 0.72), rgba(7, 19, 38, 0.6));
+  border: 1px solid var(--color-uf-line);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.uf-card {
+  background: linear-gradient(160deg, rgba(16, 45, 80, 0.72), rgba(7, 19, 38, 0.6));
+  border: 1px solid var(--color-uf-line);
+  border-radius: 24px;
+  transition: transform 300ms, border-color 300ms, box-shadow 300ms;
+}
+.uf-card-hover:hover, .uf-card-hover:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(54, 217, 245, 0.45);
+  box-shadow: 0 18px 48px -18px rgba(54, 217, 245, 0.35);
+}
+
+.uf-btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-[background-color,box-shadow,transform] duration-200;
+  background: var(--color-uf-lemon); color: var(--color-uf-bg);
+  padding: 14px 28px; min-height: 48px;
+}
+.uf-btn-primary:hover { box-shadow: 0 0 0 4px rgba(221, 243, 75, 0.18), 0 10px 30px -10px rgba(221, 243, 75, 0.6); }
+
+.uf-btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-full font-bold transition-colors duration-200;
+  border: 1px solid rgba(247, 250, 255, 0.28); color: var(--color-uf-text);
+  padding: 14px 28px; min-height: 48px;
+}
+.uf-btn-ghost:hover { border-color: var(--color-uf-cyan); color: var(--color-uf-cyan); }
+
+/* focus ring เดียวกันทั้งหน้า — มองเห็นชัดบนพื้นเข้ม */
+.uf-focus:focus-visible, .uf-home :focus-visible, .uf-nav :focus-visible, .uf-footer :focus-visible, .uf-guide :focus-visible {
+  outline: 2px solid var(--color-uf-cyan);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+/* แถบคุกกี้ (SiteNoticeBar) อยู่มุมขวาล่างเดียวกับปุ่มน้องเลม่อน — หลบไปก่อนจนกว่าผู้ใช้จะตอบแถบคุกกี้ */
+.uf-guide-fab { transition: opacity 200ms, transform 200ms; }
+:root[data-notice="open"] .uf-guide-fab { opacity: 0; transform: scale(0.8); pointer-events: none; visibility: hidden; }
+
+/* ช่องค้นหามีปุ่มล้างของเราเองแล้ว — ซ่อนปุ่ม × ของ Chrome/Safari ไม่ให้ซ้อนกัน */
+.uf-home input[type="search"]::-webkit-search-cancel-button,
+.uf-guide input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+/* อยู่ใน @layer components — utility อย่าง lg:grid / lg:overflow-visible ต้อง override ได้
+   (CSS ที่ไม่อยู่ใน layer ชนะ utility ของ Tailwind v4 เสมอ ไม่ว่า specificity เท่าไร) */
+@layer components {
+  .uf-scroll-x {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .uf-scroll-x::-webkit-scrollbar { display: none; }
+  .uf-scroll-x > * { scroll-snap-align: start; }
+}
+
+/* ── Hero energy arrow: light trace 0.4–0.9s → reveal 0.9–1.5s → idle หลัง 2s ── */
+@keyframes uf-trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes uf-reveal { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes uf-float { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -12px, 0); } }
+@keyframes uf-spin { to { transform: rotate(360deg); } }
+@keyframes uf-pulse-glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+.uf-trace { stroke-dasharray: 1; stroke-dashoffset: 1; animation: uf-trace 0.5s 0.4s cubic-bezier(.6,0,.2,1) forwards; }
+.uf-reveal { opacity: 0; transform-origin: center; transform-box: fill-box; animation: uf-reveal 0.6s 0.9s ease-out forwards; }
+.uf-float { animation: uf-float 6s 2s ease-in-out infinite; }
+.uf-orbit { transform-box: view-box; transform-origin: 50% 50%; animation: uf-spin 40s 1.5s linear infinite; }
+.uf-glow { animation: uf-pulse-glow 4s 2s ease-in-out infinite; }
+
+/* ── Hero V3 (EnergyArrow.tsx): เส้นแสงวาดตัวเอง · ชีพจรพลังงาน · อนุภาคกระจก ── */
+@keyframes uf-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+/* ชีพจร: dash ยาว 0.1 ของเส้น (pathLength=1) วิ่งจากก่อนต้นเส้น (0.1) ไปพ้นปลายเส้น (-1.0) — นอกช่วงนั้นมองไม่เห็น */
+@keyframes uf-pulse-run { from { stroke-dashoffset: 0.1; } to { stroke-dashoffset: -1; } }
+@keyframes uf-pulse-idle { 0% { stroke-dashoffset: 0.1; } 28% { stroke-dashoffset: -1; } 100% { stroke-dashoffset: -1; } }
+@keyframes uf-particle-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes uf-particle-float { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -10px, 0); } }
+
+.uf-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: uf-draw 0.6s ease-out forwards; }
+.uf-pulse {
+  stroke-dasharray: 0.1 1.1; stroke-dashoffset: 0.1;
+  animation: uf-pulse-run 0.5s 0.4s cubic-bezier(.5,0,.3,1) forwards, uf-pulse-idle 5.5s 2.2s ease-in-out infinite;
+}
+.uf-particle-in { opacity: 0; transform-box: fill-box; animation: uf-particle-in 0.5s ease-out forwards; }
+.uf-particle-float { transform-box: fill-box; animation: uf-particle-float 7s 2s ease-in-out infinite; }
+
+/* มือถือ: เหลือแค่ intro ครั้งเดียว ไม่มี animation วนซ้ำ (ประหยัดแบตเตอรี่/CPU) */
+@media (max-width: 767px) {
+  .uf-orbit, .uf-float, .uf-glow, .uf-particle-float { animation: none; }
+  .uf-pulse { animation: uf-pulse-run 0.5s 0.4s cubic-bezier(.5,0,.3,1) forwards; }
+}
+/* ลด motion: ทุกชั้นแสดงนิ่งในสถานะสุดท้ายทันที — ชีพจร (เป็นการเคลื่อนไหวล้วน) ซ่อน */
+@media (prefers-reduced-motion: reduce) {
+  .uf-draw { stroke-dashoffset: 0; animation: none; }
+  .uf-particle-in { opacity: 1; transform: none; animation: none; }
+  .uf-reveal, .uf-trace { animation: none; }
+  .uf-pulse-group { display: none; }
+}
+
+/* ── Journey backdrop (JourneyBackdrop.tsx) ── */
+/* V3: แสงเป็น "จังหวะซ้ำ" ทุก 1800px (ซ้าย-บน → ขวา → ซ้าย) แทนตำแหน่ง % ของความสูงหน้า —
+   admin สลับ/ซ่อน section แล้วหน้ายาวเท่าไรก็ยังมีแสงกระจายสม่ำเสมอ ไม่มีโซนมืดยาว; ทิศแสงคงที่จากซ้ายบน */
+.uf-journey-zones {
+  background-image:
+    radial-gradient(900px 640px at 0% 8%, rgba(16, 45, 80, 0.6), transparent 70%),
+    radial-gradient(760px 560px at 100% 38%, rgba(54, 217, 245, 0.075), transparent 70%),
+    radial-gradient(880px 620px at 8% 68%, rgba(16, 45, 80, 0.5), transparent 70%),
+    radial-gradient(640px 520px at 96% 88%, rgba(221, 243, 75, 0.05), transparent 70%);
+  background-size: 100% 1800px;
+  background-repeat: repeat-y;
+}
+/* ชั้นหมอกลึก — คาบ 2600px (ไม่ตรงกับชั้นบน) ให้ความลึกโดยไม่เห็นเป็นลายซ้ำ */
+.uf-journey-fog {
+  background-image:
+    radial-gradient(1200px 900px at 70% 20%, rgba(16, 45, 80, 0.35), transparent 72%),
+    radial-gradient(1100px 800px at 25% 75%, rgba(54, 217, 245, 0.035), transparent 72%);
+  background-size: 100% 2600px;
+  background-repeat: repeat-y;
+}
+/* รอยต่อแสงระหว่าง section ที่อยู่ติดกัน — ทำงานกับทุกลำดับที่ admin จัด (ไม่ผูกกับ block ใด) */
+.uf-home > section { position: relative; }
+.uf-home > section + section::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: min(1248px, calc(100% - 40px)); height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(54, 217, 245, 0.22) 30%, rgba(221, 243, 75, 0.18) 70%, transparent);
+}
+.uf-journey-grid {
+  background-image:
+    linear-gradient(rgba(247, 250, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(247, 250, 255, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  /* จางที่ขอบซ้าย-ขวา และช่วง hero (hero มี grid ของตัวเอง) */
+  mask-image: linear-gradient(90deg, transparent, black 18%, black 82%, transparent), linear-gradient(transparent 0, black 900px);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+.uf-journey-rail {
+  left: max(24px, calc((100% - 1248px) / 2 - 48px));
+  width: 1px;
+  background: linear-gradient(transparent, rgba(54, 217, 245, 0.35) 8%, rgba(54, 217, 245, 0.18) 50%, rgba(221, 243, 75, 0.3) 92%, transparent);
+}
+.uf-journey-comet {
+  position: absolute; left: -2px; top: 0; width: 5px; height: 120px; border-radius: 4px;
+  background: linear-gradient(transparent, var(--color-uf-cyan));
+  animation: uf-comet 16s linear infinite;
+}
+/* วิ่งตามความยาวเส้นจริง (top เป็น % ของ rail) — element เดียว ราคาถูก */
+@keyframes uf-comet { from { top: 0; opacity: 0; } 6% { opacity: 1; } 94% { opacity: 1; } to { top: 100%; opacity: 0; } }
+.uf-trail {
+  position: absolute; width: 120%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(54, 217, 245, 0.22) 30%, rgba(221, 243, 75, 0.18) 60%, transparent);
+}
+@media (max-width: 767px) { .uf-trail { opacity: 0.6; } }
+
+/* หยุด animation วนซ้ำตอนอยู่นอกจอ (คลาสนี้ใส่โดย useInView ในคอมโพเนนต์) */
+.uf-paused, .uf-paused * { animation-play-state: paused !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .uf-trace { stroke-dashoffset: 0; }
+  .uf-reveal { opacity: 1; transform: none; }
+}
+
+/* ══ โหมดสำรวม (admin → การแสดงผล) — ThemeApplier ใส่ data-solemn / data-grayscale ที่ <html>
+   สีเน้นเปลี่ยนผ่าน CSS variables ใน lib/theme.ts; ตรงนี้ปิดสิ่งที่ variable ไปไม่ถึง ══ */
+
+/* ภาพเคลื่อนไหวทั้งเว็บ: จบที่สถานะสุดท้ายทันที (uf-reveal/uf-trace ใช้ fill forwards จึงแสดงครบ) */
+:root[data-solemn="1"] *, :root[data-solemn="1"] *::before, :root[data-solemn="1"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+/* แสงเรือง/เงานีออนที่เขียนเป็นค่าสีตายตัวใน class */
+:root[data-solemn="1"] :is(.uf-home, .uf-nav, .uf-footer, .uf-guide) * { text-shadow: none !important; }
+:root[data-solemn="1"] :is(.uf-home, .uf-nav, .uf-footer, .uf-guide) [class*="shadow-["],
+:root[data-solemn="1"] .uf-btn-primary:hover,
+:root[data-solemn="1"] .uf-card-hover:hover { box-shadow: none !important; }
+:root[data-solemn="1"] .uf-glow, :root[data-solemn="1"] [class*="blur-["] { opacity: 0.35; }
+:root[data-solemn="1"] .accent-word { text-shadow: none; }
+
+/* ขาวดำทั้งเว็บ — filter ที่ <html> (root) ไม่ทำให้ element position: fixed เพี้ยน */
+:root[data-grayscale="1"] { filter: grayscale(1); }

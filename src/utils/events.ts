@@ -1,11 +1,5 @@
 import { EventItem } from '../types';
-
-/** เที่ยงคืนของวันนี้ — กิจกรรมที่ startAt ก่อนหน้านี้ถือว่าผ่านไปแล้ว */
-function startOfToday(): number {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
+import { eventStatus, eventSortKey } from './bangkokTime';
 
 /** ผ่าน publish window หรือยัง (published / publishAt / unpublishAt) */
 export function isPublished(ev: EventItem, now = new Date()): boolean {
@@ -15,25 +9,23 @@ export function isPublished(ev: EventItem, now = new Date()): boolean {
   return true;
 }
 
-/** กิจกรรมที่ยัง "มาไม่ถึง" — เผยแพร่อยู่ + (ไม่มี startAt หรือ startAt ยังไม่ผ่าน)
- *  เรียง: มีวันที่ก่อน (ใกล้สุดขึ้นก่อน) → ตามด้วยที่ยังรอกำหนดการ */
+/** กิจกรรมที่ยัง "มาไม่ถึง" (กำลังจะมาถึง / กำลังจัด / รอกำหนดการ) — เผยแพร่อยู่ และสถานะไม่ใช่ past
+ *  สถานะคิดตามเวลาไทยด้วย eventStatus (startAt ก่อน แล้ววันจากข้อความที่มีปีชัดเจน) — เดิมกิจกรรมไม่มี startAt
+ *  ถูกนับเป็น "ที่จะถึง" เสมอ แม้ข้อความวันที่จะผ่านมาแล้ว (เช่น "25 ส.ค. 2569")
+ *  เรียง: รู้วันก่อน (ใกล้สุดขึ้นก่อน) → ตามด้วยที่ยังรอกำหนดการ */
 export function upcomingEvents(events: EventItem[]): EventItem[] {
-  const today = startOfToday();
+  const now = new Date();
   return events
-    .filter(ev => isPublished(ev) && (!ev.startAt || new Date(ev.startAt).getTime() >= today))
-    .sort((a, b) => {
-      const ta = a.startAt ? new Date(a.startAt).getTime() : Infinity;
-      const tb = b.startAt ? new Date(b.startAt).getTime() : Infinity;
-      return ta - tb;
-    });
+    .filter(ev => isPublished(ev, now) && eventStatus(ev, now) !== 'past')
+    .sort((a, b) => (eventSortKey(a) || '9999').localeCompare(eventSortKey(b) || '9999'));
 }
 
-/** กิจกรรมที่ผ่านมาแล้ว — เผยแพร่อยู่ + startAt ผ่านไปแล้ว เรียงล่าสุดก่อน */
+/** กิจกรรมที่ผ่านมาแล้ว — เผยแพร่อยู่ + สถานะ past เรียงล่าสุดก่อน */
 export function pastEvents(events: EventItem[]): EventItem[] {
-  const today = startOfToday();
+  const now = new Date();
   return events
-    .filter(ev => isPublished(ev) && ev.startAt && new Date(ev.startAt).getTime() < today)
-    .sort((a, b) => new Date(b.startAt!).getTime() - new Date(a.startAt!).getTime());
+    .filter(ev => isPublished(ev, now) && eventStatus(ev, now) === 'past')
+    .sort((a, b) => eventSortKey(b).localeCompare(eventSortKey(a)));
 }
 
 /** แยก date string เป็น 2 บรรทัดสำหรับ badge (เช่น "22 ส.ค." → ["22","ส.ค."]) */

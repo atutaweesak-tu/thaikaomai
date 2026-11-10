@@ -52,6 +52,52 @@ export interface NewsItem extends AuditFields {
   videoUrl?: string;
 }
 
+/** คลิป YouTube ที่ admin ใส่ลิงก์เอง (วิธี A — ไม่ใช้ YouTube API/RSS) แสดงใน section คลิปหน้าแรก */
+export interface VideoItem extends AuditFields {
+  id: string;
+  url: string;             // ลิงก์ YouTube ใดก็ได้ที่ extractYouTubeId รู้จัก (watch / youtu.be / shorts / live)
+  title: string;
+  type: 'video' | 'short' | 'live' | 'upcoming'; // short = แถว Shorts 9:16 · live/upcoming = ป้ายไลฟ์ (จาก sync หรือ admin เลือก)
+  category?: string;       // ป้ายกรอง เช่น "ปราศรัย" "นโยบาย" "สัมภาษณ์"
+  policyId?: string;       // ผูกกับนโยบาย (ไม่บังคับ)
+  date?: string;           // ISO date — ใช้เรียง + แสดงผล
+  featured?: boolean;      // คลิปเด่น (ใหญ่ซ้าย) — ถ้าไม่มี ใช้คลิปล่าสุด
+  pinned?: boolean;        // ปักหมุด — ขึ้นก่อนในแถวคลิป/Shorts
+  order?: number;
+  source?: 'manual' | 'youtube-sync'; // ไม่มี = เพิ่มเองจาก admin
+  youtubeId?: string;      // คีย์กันซ้ำของรายการ sync
+  typeLocked?: boolean;    // admin แก้ประเภทเอง → sync ไม่เปลี่ยนกลับ
+  durationSec?: number | null;
+  classifyEvidence?: string; // เหตุผลที่ sync จัดประเภท (เช่น "vertical-player+#shorts")
+  scheduledStart?: string; // เวลาเริ่มไลฟ์ (upcoming)
+  thumbnail?: string;      // รูปปกจาก feed/API (หน้าเว็บใช้รูปจาก i.ytimg ตาม video id อยู่แล้ว)
+  typeUnverified?: boolean; // sync จำแนกประเภทไม่ได้ (RSS ไม่มีลิงก์ /shorts/) → admin ยืนยันในแท็บคลิป
+  published?: boolean;
+  publishAt?: string;
+  unpublishAt?: string;
+}
+
+/** โพสต์/Reels Instagram ที่แสดงในหน้าแรก (collection "instagram")
+ *  ตอนนี้: admin ใส่ลิงก์เอง (source "manual") — ฝังผ่าน iframe /embed ทางการเมื่อผู้ใช้กดเปิดเท่านั้น
+ *  อนาคต: งานฝั่ง server ซิงก์จาก Instagram API (บัญชี Business/Creator ที่อนุญาต) เขียนรายการ source "api"
+ *  — ฟิลด์ที่ขึ้นต้น "ใช้ตอน sync" ยังไม่มีใครเขียน (ดู docs/INSTAGRAM_INTEGRATION_V3.md) */
+export interface InstagramItem extends AuditFields {
+  id: string;
+  url: string;              // ลิงก์โพสต์สาธารณะ — ต้องผ่าน parseInstagramUrl (instagram.com/p/… หรือ /reel/…)
+  kind: 'post' | 'reel';    // คำนวณจาก url ตอนบันทึก
+  mediaType?: 'image' | 'video' | 'carousel'; // ชนิดสื่อของโพสต์ /p/ — admin เลือกเอง หรือได้จาก media_type ตอน sync (ป้ายบนการ์ด)
+  title: string;            // ชื่อรายการ (แสดงบนการ์ด — Instagram ไม่ให้ดึงคำบรรยายโดยไม่มี API token)
+  cover?: string;           // รูปปก (ไม่บังคับ) — admin อัปโหลดเอง
+  pinned?: boolean;         // ปักหมุด = ขึ้นก่อนเสมอ + ป้าย "ปักหมุด"
+  order?: number;
+  published?: boolean;
+  publishAt?: string;
+  unpublishAt?: string;
+  source?: 'manual' | 'api';
+  externalId?: string;      // ใช้ตอน sync: media id จาก API (กันรายการซ้ำ)
+  postedAt?: string;        // ใช้ตอน sync: timestamp ของโพสต์
+}
+
 export interface EventItem extends AuditFields {
   id: string;
   title: string;
@@ -77,7 +123,11 @@ export interface NewsCategory {
 }
 
 /** ลำดับ section ของหน้าแรก — 5 ชนิดคงที่ (แก้ไม่ได้/ลบไม่ได้) + 'promo' ที่ admin เพิ่มเองได้หลายอัน */
-export type HomeBlockType = 'hero' | 'policies' | 'team' | 'news' | 'cta' | 'promo';
+/** ส่วนย่อย (เปิด/ปิด/ย้ายได้ทีละส่วน) + แบบเดิมที่รวมหลายส่วน (hero/policies/news/cta — ดู src/utils/homeBlocks.ts) */
+export type HomeBlockType =
+  | 'heroMain' | 'quickDiscovery' | 'policyUniverse' | 'policyHub' | 'team' | 'newsroom' | 'videos' | 'instagram'
+  | 'activities' | 'poll' | 'guide' | 'join' | 'promo'
+  | 'hero' | 'policies' | 'news' | 'cta';
 
 export interface PageBlock extends AuditFields {
   id: string;
@@ -138,6 +188,8 @@ export interface ThemeSettings {
   fontScale: 'sm' | 'md' | 'lg';           // ขนาดตัวอักษรพื้นฐาน
   accentLevel: 'high' | 'low';             // ใช้สีนีออนเป็นตัวหนังสือ มาก/น้อย
   showEyebrows: boolean;                   // แสดงป้ายหมวดเหนือหัวข้อ (↗)
+  solemn: boolean;                         // โหมดสำรวม (ช่วงไว้ทุกข์/ประกาศสำคัญ) — ปิดสีนีออน แสงเรือง และ animation
+  grayscale: boolean;                      // (ใช้เมื่อ solemn เปิด) ทั้งเว็บเป็นขาวดำ — รวมรูปและโลโก้
 }
 
 /** ปรับขนาด/สี/เปิดปิดของข้อความแต่ละชิ้นใน Hero — ไม่ตั้งค่า = ใช้ค่า default เดิมของ element นั้น */
@@ -170,7 +222,7 @@ export interface SiteSettings {
   };
   hero: {
     // split = ข้อความซ้าย/รูปขวา (เดิม), full = รูปเต็มพื้นที่ ข้อความซ้อนทับ, imageOnly = รูปเต็มพื้นที่ ไม่มีข้อความเลย — ไม่ตั้งค่า = split
-    layout?: 'split' | 'full' | 'imageOnly';
+    layout?: 'split' | 'full' | 'imageOnly' | 'cinematic'; // cinematic = ข้อความ + ลูกศรพลังงาน (Ultra Future)
     badge: string;
     heading1: string;
     heading2: string;
@@ -219,6 +271,15 @@ export interface SiteSettings {
   footer: {
     description: string;
     copyright: string;
+    /** ปุ่มลิงก์ในคอลัมน์ขวาของ Footer — ถ้า ctaUrl ว่าง จะแสดงฟอร์มรับข่าวสารทางอีเมลแทน */
+    ctaHeading?: string;
+    ctaLabel?: string;
+    ctaUrl?: string;
+  };
+  /** การแสดงคลิป YouTube หน้าแรก (สาธารณะ) — การตั้งค่า sync อยู่ฝั่ง server (data/youtube-sync.json) */
+  videoDisplay: {
+    showShorts: boolean;
+    maxVideos: number;     // จำนวนคลิปสูงสุดที่แสดง (และจำนวนที่ sync ดึงจากช่อง)
   };
   pages: {
     teamHeading: string;
@@ -292,6 +353,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     fontScale: 'md',
     accentLevel: 'high',
     showEyebrows: true,
+    solemn: false,
+    grayscale: false,
   },
   contact: {
     address: 'กรุงเทพมหานคร ประเทศไทย',
@@ -306,7 +369,11 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   footer: {
     description: 'ก้าวใหม่ให้ไทยสตรอง พรรคไทยก้าวใหม่ เบอร์ 49 มุ่งพลิกโฉมประเทศไทยด้วยนโยบาย "ธนู 4 ดอก" เพื่ออนาคตที่ดีกว่าของคนไทยทุกคน',
     copyright: '© 2569 พรรคไทยก้าวใหม่ สงวนลิขสิทธิ์',
+    ctaHeading: 'เปิดรับสมัคร',
+    ctaLabel: 'ร่วมเป็นผู้สมัคร สส.พรรคไทยก้าวใหม่',
+    ctaUrl: 'https://docs.google.com/forms/d/e/1FAIpQLScN1RnWdk_IzGd3uGP8zlumU3-HZgMehQ_niI3J7g7VR4ES0A/viewform',
   },
+  videoDisplay: { showShorts: true, maxVideos: 24 },
   pages: {
     teamHeading: 'ทีมพรรคไทยก้าวใหม่.',
     teamDescription: 'ทีมนักวิชาการ นักการศึกษา และผู้เชี่ยวชาญที่มุ่งมั่นพัฒนาประเทศไทยให้ก้าวหน้า สร้างอนาคตที่ดีกว่าสำหรับคนไทยทุกคน',

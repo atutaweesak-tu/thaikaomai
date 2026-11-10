@@ -30,6 +30,8 @@ function localApiPlugin(): Plugin {
       server.middlewares.use('/api/polls', handlers.pollVote);
       server.middlewares.use('/api/analytics', handlers.analytics);
       server.middlewares.use('/api/media', handlers.media);
+      server.middlewares.use('/api/instagram', handlers.instagram);
+      server.middlewares.use('/api/youtube', handlers.youtube);
     },
   };
 }

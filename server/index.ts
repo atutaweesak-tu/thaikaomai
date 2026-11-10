@@ -55,7 +55,8 @@ const CSP = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
   "connect-src 'self'",
-  "frame-src https://www.youtube-nocookie.com", // ฝังคลิป YouTube ในหน้าข่าว/กิจกรรม (ดู YouTubeEmbed.tsx)
+  // ฝังคลิป YouTube (YouTubeEmbed.tsx / VideoChannel) + โพสต์ Instagram ผ่าน iframe /embed ทางการ (InstagramFeed — โหลดเมื่อผู้ใช้กดเปิดเท่านั้น)
+  "frame-src https://www.youtube-nocookie.com https://www.instagram.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -85,6 +86,8 @@ app.use(createVerifyRouter(env, dataDir));
 app.get('/sitemap.xml', handlers.sitemap);
 app.get('/api/analytics', handlers.analytics);
 app.get('/api/media', handlers.media);
+app.use('/api/instagram', handlers.instagram);
+app.use('/api/youtube', handlers.youtube);
 
 // Android App Links verification — ให้แอปมือถือ (thaikaomai-app) เปิดลิงก์ /news/* และ /events/*
 // ตรงเข้าแอปแทนเบราว์เซอร์ ได้ SHA-256 fingerprint จาก EAS build credentials (Android upload keystore)

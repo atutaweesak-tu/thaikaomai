@@ -15,6 +15,14 @@ export default function SiteNoticeBar() {
     }
   }, []);
 
+  // บอกส่วนอื่นว่าแถบคุกกี้เปิดอยู่ — ปุ่มลอยน้องเลม่อน (มุมขวาล่างเดียวกัน) จะหลบจนกว่าจะกดยอมรับ/ปฏิเสธ
+  useEffect(() => {
+    const root = document.documentElement;
+    if (visible) root.dataset.notice = 'open';
+    else delete root.dataset.notice;
+    return () => { delete root.dataset.notice; };
+  }, [visible]);
+
   const accept = () => {
     localStorage.setItem(NOTICE_KEY, 'accepted');
     setVisible(false);
@@ -41,13 +49,13 @@ export default function SiteNoticeBar() {
                 <Cookie size={18} className="text-brand-neon shrink-0" />
                 <p className="font-bold text-sm text-white">การใช้คุกกี้</p>
               </div>
-              <button onClick={decline} className="text-white/30 hover:text-white transition-colors shrink-0">
+              <button onClick={decline} aria-label="ปิดแถบแจ้งการใช้คุกกี้ (ปฏิเสธ)" className="text-white/30 hover:text-white transition-colors shrink-0">
                 <X size={18} />
               </button>
             </div>
             <p className="text-white/55 text-xs leading-relaxed mb-4">
               เว็บไซต์นี้ใช้คุกกี้เพื่อปรับปรุงประสบการณ์การใช้งาน
-              ตาม <Link to="/privacy" onClick={accept} className="text-brand-neon hover:underline">นโยบายความเป็นส่วนตัว</Link>{' '}
+              ตาม <Link to="/privacy" onClick={accept} className="text-brand-neon underline underline-offset-2">นโยบายความเป็นส่วนตัว</Link>{' '}
               ของพรรคไทยก้าวใหม่ (PDPA)
             </p>
             <div className="flex gap-2">

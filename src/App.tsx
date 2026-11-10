@@ -14,6 +14,7 @@ import SiteNoticeBar from './components/SiteNoticeBar';
 import ScrollToTop from './components/ScrollToTop';
 import ScrollProgress from './components/ScrollProgress';
 import ThemeApplier from './components/ThemeApplier';
+import LemonGuide from './components/uf/LemonGuide';
 import HomePage from './pages/HomePage';
 
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -69,6 +70,9 @@ export default function App() {
               </Suspense>
             </div>
             <Footer />
+            <ErrorBoundary fallback={null}>
+              <LemonGuide />
+            </ErrorBoundary>
           </div>
         </Router>
       </AuthProvider>

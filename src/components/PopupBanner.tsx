@@ -56,11 +56,20 @@ export default function PopupBanner() {
   const [pos, setPos] = useState(0);
   const [visible, setVisible] = useState(false);
 
+  // เปิด popup หลังรูปโหลดเสร็จเท่านั้น — เดิมเปิดก่อนแล้วรูป (lazy) ค่อยโหลด กล่องจึงขยายทีหลัง = layout shift
+  // (Lighthouse CLS 0.08 เดสก์ท็อป / 0.18 มือถือ) · โหลดรูปในคิวที่เหลือไว้ล่วงหน้าด้วย
   useEffect(() => {
     setPos(0);
     if (!queue.length) { setVisible(false); return; }
-    const t = setTimeout(() => setVisible(true), 600);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const first = new Image();
+    const show = () => { if (!cancelled) t = setTimeout(() => setVisible(true), 600); };
+    first.onload = show;
+    first.onerror = show; // รูปเสีย — ยังเปิดได้ (เหมือนเดิม) ไม่ค้างเงียบ
+    first.src = queue[0].image;
+    queue.slice(1).forEach(item => { new Image().src = item.image; });
+    return () => { cancelled = true; if (t) clearTimeout(t); };
   }, [queue]);
 
   if (location.pathname === '/admin') return null;
@@ -123,7 +132,7 @@ export default function PopupBanner() {
                 src={current.image}
                 alt="ประกาศ"
                 className="w-full h-auto block"
-                loading="lazy"
+                decoding="async"
               />
             </div>
 

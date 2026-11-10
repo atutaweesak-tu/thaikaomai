@@ -3,7 +3,9 @@ import { motion } from 'motion/react';
 import * as Icons from 'lucide-react';
 import { POLICIES as FALLBACK_POLICIES } from '../constants';
 import { subscribeToPolicies, subscribeToSiteSettings } from '../services/dataService';
+import { useLocation } from 'react-router-dom';
 import { Policy, SiteSettings, DEFAULT_SETTINGS } from '../types';
+import { groupPolicies } from '../utils/policies';
 
 export default function PoliciesPage() {
   const [policies, setPolicies] = useState<Policy[]>(FALLBACK_POLICIES);
@@ -26,17 +28,17 @@ export default function PoliciesPage() {
   });
 
   // ธนูดอกใหญ่ 4 ดอก (featuredHome) เป็นกาดใหญ่ ส่วนนโยบายที่ตามมาจนถึงดอกถัดไปคือกาดย่อยของดอกนั้น
-  type Group = { header: Policy; items: Policy[] };
-  const groups: Group[] = [];
-  for (const policy of visiblePolicies) {
-    if (policy.featuredHome) {
-      groups.push({ header: policy, items: [] });
-    } else if (groups.length > 0) {
-      groups[groups.length - 1].items.push(policy);
-    } else {
-      groups.push({ header: policy, items: [] });
-    }
-  }
+  const groups = groupPolicies(visiblePolicies);
+
+  // ลิงก์ /policies#<id> จากหน้าแรก/เมนู — เลื่อนไปที่การ์ดนั้นหลังข้อมูลโหลด
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    // smooth scroll โดนยกเลิกระหว่างหน้ายังจัด layout (lazy chunk/รูปโหลด) — ใช้แบบทันทีและยิงซ้ำอีกรอบหลัง layout นิ่ง
+    const go = () => document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: 'start' });
+    const timers = [setTimeout(go, 120), setTimeout(go, 700)];
+    return () => timers.forEach(clearTimeout);
+  }, [hash, policies]);
 
   return (
     <main className="pt-32 pb-24">
@@ -65,10 +67,11 @@ export default function PoliciesPage() {
             return (
               <motion.div
                 key={group.header.id}
+                id={group.header.id}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-16"
+                className="bg-white/5 border border-white/10 rounded-[40px] p-8 md:p-16 scroll-mt-28"
               >
                 {/* กาดใหญ่ — หัวข้อธนูดอก */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-4">
@@ -106,11 +109,12 @@ export default function PoliciesPage() {
                       return (
                         <motion.div
                           key={policy.id}
+                          id={policy.id}
                           initial={{ opacity: 0, y: 20 }}
                           whileInView={{ opacity: 1, y: 0 }}
                           transition={{ delay: (index % 4) * 0.05 }}
                           viewport={{ once: true }}
-                          className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8"
+                          className="bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 scroll-mt-28"
                         >
                           {policy.iconImage ? (
                             <div className="w-full aspect-video rounded-2xl overflow-hidden mb-5 bg-brand-navy border border-white/10">

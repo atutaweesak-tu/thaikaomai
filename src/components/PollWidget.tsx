@@ -19,7 +19,7 @@ export default function PollWidget() {
   if (!poll) return null;
 
   return (
-    <section className="py-24">
+    <section className="py-14 md:py-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <PollCard
           poll={poll}

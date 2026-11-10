@@ -1,3 +1,4 @@
+import { DEFAULT_SECTION_BLOCKS } from './utils/homeBlocks';
 import {
   BookOpen,
   TrendingUp,
@@ -396,10 +397,5 @@ export const EVENTS: EventItem[] = [
 
 // ลำดับ section เริ่มต้นของหน้าแรก — ใช้ตอน collection "homeblocks" ยังว่าง (deploy ใหม่/ยังไม่ได้ seed)
 // เพื่อให้หน้าแรกยังแสดงผลลำดับเดิมได้ทันทีโดยไม่ต้องกรอกข้อมูลก่อน
-export const DEFAULT_HOME_BLOCKS: PageBlock[] = [
-  { id: 'default_hero', type: 'hero', order: 0, published: true },
-  { id: 'default_policies', type: 'policies', order: 1, published: true },
-  { id: 'default_team', type: 'team', order: 2, published: true },
-  { id: 'default_news', type: 'news', order: 3, published: true },
-  { id: 'default_cta', type: 'cta', order: 4, published: true },
-];
+// แยกเป็นส่วนย่อยทั้งหมด (เปิด/ปิด/ย้ายได้ทีละส่วน) — รายการ/ลำดับอยู่ที่ src/utils/homeBlocks.ts
+export const DEFAULT_HOME_BLOCKS: PageBlock[] = DEFAULT_SECTION_BLOCKS;

@@ -5,6 +5,26 @@ import bcrypt from 'bcryptjs';
 import type { ServerResponse, IncomingMessage } from 'http';
 import nodemailer from 'nodemailer';
 import { notifyNewsPublished } from './push';
+import { parseInstagramUrl } from '../src/utils/instagram';
+import { readYouTubeApiConfig, normalizeSyncState, resolveChannel, fetchLatestVideos, fetchRssFeed, canSync, mergeSyncedVideos, publicSyncStatus, YouTubeApiError, type YouTubeSyncState } from './youtubeSync';
+import { parseYouTubeChannelInput } from '../src/utils/youtube';
+import { readInstagramConfig, publicStatus, verifyInstagramAccount, fetchInstagramMedia, mergeInstagramItems } from './instagramSync';
+
+/** ตรวจ payload ของ collection "instagram" ฝั่ง server (กันการเรียก API ตรงข้ามหน้า admin)
+ *  ใช้ตัวแยก URL ตัวเดียวกับหน้าเว็บ — url ต้องเป็นโพสต์/Reels สาธารณะที่รองรับ; kind คำนวณจาก url เสมอ */
+function validateInstagramPayload(body: any, isCreate: boolean): string | null {
+  if (isCreate || body.url !== undefined) {
+    const ref = parseInstagramUrl(body.url);
+    if (!ref) return 'ลิงก์ Instagram ไม่ถูกต้อง — รองรับเฉพาะ instagram.com/p/… และ instagram.com/reel/…';
+    body.kind = ref.kind;
+  }
+  if (body.mediaType !== undefined && !['image', 'video', 'carousel'].includes(body.mediaType)) delete body.mediaType;
+  if (isCreate && !String(body.title || '').trim()) return 'กรุณาตั้งชื่อรายการ';
+  if (body.source === undefined && isCreate) body.source = 'manual';
+  return null;
+}
+
+const VIDEO_TYPES = ['video', 'short', 'live', 'upcoming'];
 
 // ── Collections ที่เป็นข้อมูลส่วนบุคคล (PII) — อ่านได้เฉพาะ admin ที่ login แล้ว ─────
 // หมายเหตุ: 'users' ไม่อยู่ในนี้แล้ว เพราะต้องการ requireTab('users') โดยเฉพาะ ไม่ใช่แค่ login
@@ -210,6 +230,10 @@ const DEFAULT_ADMIN_TABS = ALL_TABS.filter(t => t !== 'settings' && t !== 'users
 const COLLECTION_TAB: Record<string, string> = {
   news: 'news', categories: 'news', events: 'events', policies: 'policies', team: 'team',
   polls: 'polls',
+  // คลิป YouTube ใช้สิทธิ์แท็บข่าว — ไม่เพิ่ม key สิทธิ์ใหม่ (ไม่เปลี่ยนสิทธิ์ของบัญชีเดิม)
+  videos: 'news',
+  // Instagram ใช้สิทธิ์แท็บข่าวเช่นเดียวกับคลิป — ไม่เพิ่ม key สิทธิ์ใหม่
+  instagram: 'news',
   newsletter: 'newsletter', contact: 'contact', volunteer: 'volunteer', users: 'users',
   homeblocks: 'settings',
 };
@@ -721,6 +745,16 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
 
           delete parsedBody.createdBy; delete parsedBody.updatedBy; delete parsedBody.createdAt; delete parsedBody.updatedAt;
 
+          if (col === 'videos') {
+            // รายการที่เพิ่มจาก admin เป็น manual เสมอ — source/youtubeId ของ sync เขียนได้เฉพาะงาน sync ฝั่ง server
+            delete parsedBody.source; delete parsedBody.youtubeId; delete parsedBody.typeLocked; delete parsedBody.typeUnverified;
+            if (parsedBody.type !== undefined && !VIDEO_TYPES.includes(parsedBody.type)) { res.statusCode = 400; res.end(JSON.stringify({ error: 'ประเภทคลิปไม่ถูกต้อง' })); return; }
+          }
+          if (col === 'instagram') {
+            const err = validateInstagramPayload(parsedBody, true);
+            if (err) { res.statusCode = 400; res.end(JSON.stringify({ error: err })); return; }
+          }
+
           if (col === 'users') {
             const email = String(parsedBody.email || '').trim().toLowerCase();
             if (!email || !parsedBody.name) {
@@ -785,6 +819,14 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
         } else if (req.method === 'PUT' && idOrStream) {
           const update = col === 'users' ? usersParsedBody : JSON.parse(body || '{}');
           delete update.createdBy; delete update.createdAt; delete update.updatedBy; delete update.updatedAt;
+          if (col === 'videos') {
+            delete update.source; delete update.youtubeId;
+            if (update.type !== undefined && !VIDEO_TYPES.includes(update.type)) { res.statusCode = 400; res.end(JSON.stringify({ error: 'ประเภทคลิปไม่ถูกต้อง' })); return; }
+          }
+          if (col === 'instagram') {
+            const err = validateInstagramPayload(update, false);
+            if (err) { res.statusCode = 400; res.end(JSON.stringify({ error: err })); return; }
+          }
           const idx = items.findIndex((i: any) => i.id === idOrStream);
           if (idx < 0) {
             // เดิม code ตรงนี้จะเขียนไฟล์ทับด้วยข้อมูลเดิม (ไม่เปลี่ยนอะไร) แล้วตอบ ok:true กลับไปเฉยๆ
@@ -828,6 +870,10 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
             else delete update.passwordHash; // กันไม่ให้ client ส่ง passwordHash มาทับเองได้
           }
 
+          // admin เปลี่ยนประเภทคลิปที่มาจาก sync เอง → ล็อกไว้ ไม่ให้ sync รอบหน้าเปลี่ยนกลับ
+          // typeConfirmed = admin กดยืนยันประเภทที่ sync จำแนกไม่ได้ (ไม่เปลี่ยนค่า) → ล็อกไว้เช่นกัน
+          if (col === 'videos' && items[idx].source === 'youtube-sync' && update.type !== undefined && (update.type !== items[idx].type || update.typeConfirmed === true)) { update.typeLocked = true; update.typeUnverified = false; }
+          if (col === 'videos') delete update.typeConfirmed;
           const wasPublicBefore = col === 'news' && isPublicNow(items[idx]);
           items[idx] = {
             ...items[idx], ...update,
@@ -848,6 +894,10 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
               res.end(JSON.stringify({ error: 'ไม่สามารถลบบัญชีของตัวเองได้' }));
               return;
             }
+          }
+          if (col === 'videos') {
+            const target = items.find((i: any) => i.id === idOrStream);
+            if (target?.source === 'youtube-sync' && target.youtubeId) rememberDeletedYouTubeVideo(target.youtubeId);
           }
           items = items.filter((i: any) => i.id !== idOrStream);
           writeCollection(col, items);
@@ -1159,6 +1209,197 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
     res.end(JSON.stringify({ byDate, topPages }));
   }
 
+  // ── YouTube channel sync (YouTube Data API v3) — ดู server/youtubeSync.ts + docs/YOUTUBE_CHANNEL_SYNC.md ─────
+  // GET  /api/youtube/status  (สิทธิ์แท็บข่าว)     → สถานะ sync/ข้อผิดพลาด (ไม่มี API key)
+  // POST /api/youtube/config  (สิทธิ์ตั้งค่าเว็บ)   → ตั้งช่อง (แปลงเป็น channel id ผ่าน channels.list) / เปิด-ปิด auto / รอบเวลา
+  // POST /api/youtube/sync    (สิทธิ์แท็บข่าว)     → ซิงก์ทันที
+  // ตัวจับเวลาฝั่ง server เช็คทุก tick ว่าถึงรอบหรือยัง — ผู้เข้าชมเว็บไม่ทำให้เกิดการเรียก API (หน้าเว็บอ่าน videos.json)
+  const ytCfg = readYouTubeApiConfig(env);
+  const ytStateFile = path.join(dataDir, 'youtube-sync.json');
+  const readYtState = (): YouTubeSyncState => {
+    try { return normalizeSyncState(fs.existsSync(ytStateFile) ? JSON.parse(fs.readFileSync(ytStateFile, 'utf-8')) : {}); }
+    catch { return normalizeSyncState({}); }
+  };
+  const writeYtState = (s: YouTubeSyncState) => fs.writeFileSync(ytStateFile, JSON.stringify(s, null, 2), 'utf-8');
+  let ytRunning = false;
+  function rememberDeletedYouTubeVideo(id: string) {
+    const s = readYtState();
+    if (!s.ignoredVideoIds.includes(id)) { s.ignoredVideoIds.push(id); writeYtState(s); }
+  }
+  const ytMaxVideos = () => {
+    try { return Math.min(100, Math.max(4, Number(JSON.parse(readSettings())?.videoDisplay?.maxVideos) || 24)); } catch { return 24; }
+  };
+  async function runYouTubeSync(trigger: 'manual' | 'schedule') {
+    if (ytRunning) throw new YouTubeApiError('กำลังซิงก์อยู่ — รอสักครู่');
+    ytRunning = true;
+    const startState = readYtState();
+    const attempt: Partial<YouTubeSyncState> = { lastAttemptAt: new Date().toISOString() };
+    try {
+      // RSS: fetchRssFeed ตรวจว่า feed เป็นของ Channel ID ที่ตั้งไว้ทุกรอบ · API: ใช้ uploads playlist ที่ได้ตอนตรวจช่อง
+      const { adapter, videos: synced, channelTitle } = await fetchLatestVideos(ytCfg, startState, ytMaxVideos());
+      Object.assign(attempt, {
+        lastAdapter: adapter, channelVerified: true,
+        channelVerifiedAt: startState.channelVerified ? startState.channelVerifiedAt : new Date().toISOString(),
+        ...(channelTitle ? { channelTitle } : {}),
+      });
+      const r = await new Promise<{ added: number; updated: number }>((resolve, reject) => runExclusive('videos', () => {
+        try {
+          const now = new Date().toISOString();
+          const merged = mergeSyncedVideos(readCollection('videos'), synced, readYtState().ignoredVideoIds, () => `videos_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, now);
+          if (merged.added || merged.updated) { writeCollection('videos', merged.items); broadcastCollection('videos', merged.items); }
+          resolve(merged);
+        } catch (e) { reject(e); }
+      }));
+      Object.assign(attempt, { lastSuccessAt: new Date().toISOString(), lastResult: { fetched: synced.length, added: r.added, updated: r.updated }, lastError: null, lastErrorAt: null, consecutiveFailures: 0 });
+    } catch (e) {
+      // ล้มเหลว = ไม่แตะ videos.json (หน้าเว็บใช้ cache เดิมต่อ) — บันทึกให้ admin เห็นอย่างเดียว
+      const msg = e instanceof YouTubeApiError ? e.message : 'ซิงก์ไม่สำเร็จ (ข้อผิดพลาดภายใน)';
+      Object.assign(attempt, { lastError: msg, lastErrorAt: new Date().toISOString(), consecutiveFailures: startState.consecutiveFailures + 1 });
+      console.warn(`[youtube-sync] ${trigger} failed: ${msg}`);
+      throw new YouTubeApiError(msg);
+    } finally {
+      ytRunning = false;
+      writeYtState({ ...readYtState(), ...attempt }); // อ่านใหม่ก่อนเขียน — ไม่ทับ config/ignored ที่เปลี่ยนระหว่างซิงก์
+    }
+  }
+  const ytTickMs = Math.max(5, Number(env.YOUTUBE_SYNC_TICK_SECONDS) || 60) * 1000;
+  const ytTimer = setInterval(() => {
+    const s = readYtState();
+    if (!s.autoSync || !canSync(s, ytCfg) || ytRunning) return;
+    if (s.lastAttemptAt && Date.now() - Date.parse(s.lastAttemptAt) < s.intervalMinutes * 60_000) return;
+    runYouTubeSync('schedule').catch(() => {});
+  }, ytTickMs);
+  ytTimer.unref?.();
+
+  function readJsonBody(req: IncomingMessage): Promise<any> {
+    return new Promise(resolve => {
+      let raw = '';
+      req.on('data', c => { raw += c; if (raw.length > 10_000) req.destroy(); });
+      req.on('end', () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch { resolve(null); } });
+      req.on('error', () => resolve(null));
+    });
+  }
+
+  async function youtube(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    const action = (req.url || '').split('?')[0].replace(/^\/+|\/+$/g, '');
+    const send = (code: number, body: unknown) => { res.statusCode = code; res.end(JSON.stringify(body)); };
+    const status = () => publicSyncStatus(readYtState(), ytCfg, ytRunning);
+    if (action === 'status' && req.method === 'GET') {
+      if (!requireTab(req, res, 'news')) return;
+      return send(200, status());
+    }
+    if (action === 'config' && req.method === 'POST') {
+      if (!requireTab(req, res, 'settings')) return;
+      const body = await readJsonBody(req);
+      if (!body || typeof body !== 'object') return send(400, { error: 'ข้อมูลไม่ถูกต้อง' });
+      const s = readYtState();
+      let warning: string | undefined;
+      const inputChanged = typeof body.channelInput === 'string' && body.channelInput.trim() !== s.channelInput;
+      const idChanged = typeof body.channelId === 'string' && body.channelId.trim() !== s.channelId;
+      if (inputChanged || idChanged) {
+        const input = typeof body.channelInput === 'string' ? body.channelInput.trim() : s.channelInput;
+        let channelId = typeof body.channelId === 'string' ? body.channelId.trim() : '';
+        const reset = { channelId: '', channelVerified: false, channelVerifiedAt: null, channelTitle: '', channelHandle: '', uploadsPlaylistId: '' };
+        if (!input && !channelId) Object.assign(s, { channelInput: '', ...reset, autoSync: false });
+        else if (ytCfg.apiKey) {
+          // adapter API: แปลง @handle/ลิงก์/ID ผ่าน channels.list (ยืนยันกับ YouTube ทันที)
+          try {
+            const ch = await resolveChannel(ytCfg, channelId || input);
+            if (channelId && input && parseYouTubeChannelInput(input)?.kind !== 'id') {
+              const fromUrl = await resolveChannel(ytCfg, input).catch(() => null);
+              if (fromUrl && fromUrl.channelId !== ch.channelId) return send(422, { error: `ลิงก์ช่องเป็นของ ${fromUrl.channelId} ไม่ตรงกับ Channel ID ที่ใส่ (${ch.channelId})` });
+            }
+            Object.assign(s, { channelInput: input || channelId, channelId: ch.channelId, channelTitle: ch.title, channelHandle: ch.handle, uploadsPlaylistId: ch.uploadsPlaylistId, channelVerified: true, channelVerifiedAt: new Date().toISOString() });
+          } catch (e) {
+            return send(e instanceof YouTubeApiError ? 422 : 502, { error: e instanceof YouTubeApiError ? e.message : 'ตรวจสอบช่องไม่สำเร็จ' });
+          }
+        } else {
+          // adapter RSS (ไม่มี key): แปลง @handle เป็น ID ด้วยวิธีทางการไม่ได้ → ต้องมี Channel ID (ใส่เอง หรืออยู่ในลิงก์ /channel/UC…)
+          const parsed = parseYouTubeChannelInput(input);
+          if (input && !parsed) return send(422, { error: 'ลิงก์ช่องไม่ถูกต้อง — ใช้ youtube.com/@handle หรือ youtube.com/channel/UC…' });
+          if (parsed?.kind === 'id') {
+            if (channelId && channelId !== parsed.value) return send(422, { error: `ลิงก์ช่องมี Channel ID ${parsed.value} ไม่ตรงกับที่ใส่ (${channelId})` });
+            channelId = parsed.value;
+          }
+          if (!channelId) return send(422, { error: 'ยังไม่มี API key จึงแปลง @handle เป็น Channel ID เองไม่ได้ — ใส่ Channel ID (UC…) จาก YouTube Studio › การตั้งค่า › ช่อง › การตั้งค่าขั้นสูง' });
+          if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) return send(422, { error: 'Channel ID ไม่ถูกต้อง (ต้องขึ้นต้นด้วย UC และยาว 24 ตัวอักษร)' });
+          Object.assign(s, { channelInput: input, ...reset, channelId });
+          // ตรวจกับ RSS ทันที — ผ่าน = ยืนยันแล้ว · ไม่ผ่าน = บันทึกไว้แต่ยัง "ไม่ยืนยัน" (sync ทุกรอบตรวจซ้ำและไม่นำเข้าจนกว่าจะตรง)
+          try {
+            const feed = await fetchRssFeed(ytCfg, channelId);
+            Object.assign(s, { channelVerified: true, channelVerifiedAt: new Date().toISOString(), channelTitle: feed.title });
+          } catch (e) {
+            warning = `บันทึก Channel ID แล้วแต่ยังยืนยันไม่ได้: ${e instanceof YouTubeApiError ? e.message : 'ตรวจสอบไม่สำเร็จ'}`;
+          }
+        }
+      }
+      if (body.intervalMinutes !== undefined) s.intervalMinutes = ([15, 30, 60].includes(Number(body.intervalMinutes)) ? Number(body.intervalMinutes) : 15) as 15 | 30 | 60;
+      if (body.autoSync !== undefined) {
+        if (body.autoSync === true && !canSync(s, ytCfg)) return send(409, { error: 'เปิด Automatic Sync ได้เมื่อตั้งช่อง YouTube แล้วเท่านั้น' });
+        s.autoSync = body.autoSync === true;
+      }
+      writeYtState({ ...readYtState(), ...s, ignoredVideoIds: readYtState().ignoredVideoIds });
+      return send(200, { ...status(), ...(warning ? { warning } : {}) });
+    }
+    if (action === 'sync' && req.method === 'POST') {
+      if (!requireTab(req, res, 'news')) return;
+      try { await runYouTubeSync('manual'); return send(200, status()); }
+      catch (e) { return send(e instanceof YouTubeApiError && /กำลังซิงก์|ยังไม่ได้ตั้ง|ยังไม่ได้ตรวจช่อง/.test(e.message) ? 409 : 502, { error: (e as Error).message, status: status() }); }
+    }
+    send(404, { error: 'not found' });
+  }
+
+  // ── Instagram API (ทางการของ Meta) — เตรียมไว้ ปิดอยู่จนกว่าจะตั้ง token + INSTAGRAM_SYNC_ENABLED=true ─────
+  // GET  /api/instagram/status  (สิทธิ์แท็บข่าว)     → โหมด manual/api + token ตั้งแล้วหรือยัง (ไม่ส่ง token)
+  // POST /api/instagram/verify  (สิทธิ์ตั้งค่าเว็บ)   → เรียก /me ตรวจ username + ประเภทบัญชี
+  // POST /api/instagram/sync    (สิทธิ์ตั้งค่าเว็บ)   → ตรวจบัญชีซ้ำก่อนทุกครั้ง แล้วดึง /me/media เข้า collection "instagram"
+  // ไม่มี interval/cron เรียก sync อัตโนมัติ — กดจากหน้า admin เท่านั้น
+  const igConfig = readInstagramConfig(env);
+  let igLastSync: { at: string; added: number; updated: number } | null = null;
+  let igSyncing = false;
+  async function instagram(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    const action = (req.url || '').split('?')[0].replace(/^\/+|\/+$/g, '');
+    const send = (code: number, body: unknown) => { res.statusCode = code; res.end(JSON.stringify(body)); };
+    if (action === 'status' && req.method === 'GET') {
+      if (!requireTab(req, res, 'news')) return;
+      return send(200, { ...publicStatus(igConfig), lastSync: igLastSync });
+    }
+    if (action === 'verify' && req.method === 'POST') {
+      if (!requireTab(req, res, 'settings')) return;
+      return send(200, await verifyInstagramAccount(igConfig));
+    }
+    if (action === 'sync' && req.method === 'POST') {
+      if (!requireTab(req, res, 'settings')) return;
+      if (!igConfig.token) return send(409, { error: 'ยังไม่ได้ตั้ง INSTAGRAM_ACCESS_TOKEN ฝั่ง server — ใช้ Manual Mode' });
+      if (!igConfig.enabled) return send(409, { error: 'Sync ยังปิดอยู่ (INSTAGRAM_SYNC_ENABLED ไม่ใช่ true)' });
+      if (igSyncing) return send(409, { error: 'กำลัง sync อยู่' });
+      igSyncing = true;
+      try {
+        const v = await verifyInstagramAccount(igConfig);
+        if (!v.ok) return send(409, { error: 'ตรวจสอบบัญชีไม่ผ่าน', problems: v.problems });
+        const mapped = await fetchInstagramMedia(igConfig);
+        await new Promise<void>((resolve, reject) => runExclusive('instagram', () => {
+          try {
+            const now = new Date().toISOString();
+            const r = mergeInstagramItems(readCollection('instagram'), mapped, () => `instagram_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, now);
+            writeCollection('instagram', r.items);
+            broadcastCollection('instagram', r.items);
+            igLastSync = { at: now, added: r.added, updated: r.updated };
+            resolve();
+          } catch (e) { reject(e); }
+        }));
+        return send(200, { ok: true, fetched: mapped.length, ...igLastSync });
+      } catch (e) {
+        return send(502, { error: `sync ไม่สำเร็จ: ${(e as Error).message}` });
+      } finally { igSyncing = false; }
+    }
+    send(404, { error: 'not found' });
+  }
+
   // เคลียร์ session ที่หมดอายุ + login-failure entry ที่ค้างนานเกินไปเป็นระยะ กันหน่วยความจำโตไม่หยุด
   const cleanupInterval = setInterval(() => { purgeExpiredSessions(); sweepLoginFails(); }, 30 * 60_000);
   cleanupInterval.unref?.();
@@ -1166,7 +1407,7 @@ export function createApiHandlers(env: Record<string, string>, dataDir: string, 
   const analyticsFlushInterval = setInterval(() => flushAnalytics(), 5 * 60_000);
   analyticsFlushInterval.unref?.();
 
-  return { login, logout, settingsStream, settings, upload, data, pollVote, renderSpaHtml, sitemap, analytics, media };
+  return { login, logout, settingsStream, settings, upload, data, pollVote, renderSpaHtml, sitemap, analytics, media, instagram, youtube };
 }
 
 export type ApiHandlers = ReturnType<typeof createApiHandlers>;

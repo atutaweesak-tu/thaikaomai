@@ -1,4 +1,4 @@
-import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData, Poll, PopupSettings, PopupItem } from '../types';
+import { NewsItem, EventItem, Policy, TeamMember, NewsletterSubscriber, ContactMessage, VolunteerItem, SiteSettings, DEFAULT_SETTINGS, NewsCategory, PageBlock, AdminAccount, AnalyticsData, Poll, PopupSettings, PopupItem, VideoItem, InstagramItem } from '../types';
 import { normalizeTheme } from '../lib/theme';
 
 // ─── Auth Token ───────────────────────────────────────────────────────────────
@@ -19,10 +19,11 @@ function authHeaders(): Record<string, string> {
 
 type Unsubscribe = () => void;
 
-function subscribeToCollection<T>(col: string, callback: (items: T[]) => void): Unsubscribe {
+function subscribeToCollection<T>(col: string, callback: (items: T[]) => void, onError?: (err: unknown) => void): Unsubscribe {
   let active = true;
 
   const applyData = (items: T[]) => { if (active) callback(items); };
+  const fail = (err: unknown) => { if (active) onError?.(err); };
 
   const fetchOnce = async () => {
     if (!active || document.visibilityState === 'hidden') return;
@@ -31,9 +32,10 @@ function subscribeToCollection<T>(col: string, callback: (items: T[]) => void): 
       // (contact/volunteer/newsletter/users) ฝั่ง server ต้องการ auth ตอนอ่านด้วย
       const res = await fetch(`/api/data/${col}?t=${Date.now()}`, { cache: 'no-store', headers: authHeaders() });
       if (res.ok) applyData(await res.json());
-      else console.error(`[dataService] GET ${col} failed: ${res.status}`);
+      else { console.error(`[dataService] GET ${col} failed: ${res.status}`); fail(new Error(`HTTP ${res.status}`)); }
     } catch (err) {
       console.error(`[dataService] GET ${col} network error:`, err);
+      fail(err);
     }
   };
 
@@ -104,6 +106,12 @@ export async function fetchCategories(): Promise<NewsCategory[]> {
     return [];
   }
 }
+/** ดึงครั้งเดียว ไม่ poll — สำหรับผู้ช่วยค้นหา (น้องเลม่อน) ที่โหลดข้อมูลเฉพาะตอนเปิดแผง */
+export async function fetchCollectionOnce<T>(col: string): Promise<T[]> {
+  const res = await fetch(`/api/data/${col}?t=${Date.now()}`, { cache: 'no-store', headers: authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
 export const addCategory = (category: Omit<NewsCategory, 'id'>) => apiAdd('categories', category);
 export const updateCategory = (id: string, category: Partial<NewsCategory>) => apiUpdate('categories', id, category);
 export const deleteCategory = (id: string) => apiDelete('categories', id);
@@ -126,13 +134,58 @@ export const deleteHomeBlock = (id: string) => apiDelete('homeblocks', id);
 // ─── EVENTS ───────────────────────────────────────────────────────────────────
 
 export const subscribeToEvents = (cb: (e: EventItem[]) => void) => subscribeToCollection<EventItem>('events', cb);
+
+// ─── VIDEOS (คลิป YouTube — admin ใส่ลิงก์เอง) ─────────────────────────────────
+export const subscribeToVideos = (cb: (v: VideoItem[]) => void) => subscribeToCollection<VideoItem>('videos', cb);
+export const addVideo = (video: Omit<VideoItem, 'id'>) => apiAdd('videos', video);
+export const updateVideo = (id: string, video: Partial<VideoItem>) => apiUpdate('videos', id, video);
+export const deleteVideo = (id: string) => apiDelete('videos', id);
+
+// ─── INSTAGRAM (admin ใส่ลิงก์โพสต์/Reels เอง — ไม่มี token ฝั่ง client) ─────────
+export const subscribeToInstagram = (cb: (v: InstagramItem[]) => void) => subscribeToCollection<InstagramItem>('instagram', cb);
+export const addInstagram = (item: Omit<InstagramItem, 'id'>) => apiAdd('instagram', item);
+export const updateInstagram = (id: string, item: Partial<InstagramItem>) => apiUpdate('instagram', id, item);
+export const deleteInstagram = (id: string) => apiDelete('instagram', id);
+
+// Instagram API (ทางการ) — token อยู่ฝั่ง server เท่านั้น; client ได้แค่สถานะ/ผลตรวจ/ผล sync
+export interface InstagramApiStatus {
+  mode: 'manual' | 'api'; tokenConfigured: boolean; syncEnabled: boolean; autoPublish: boolean;
+  expectedUsername: string; automaticSchedule: boolean; lastSync: { at: string; added: number; updated: number } | null;
+}
+async function instagramApi(action: 'status' | 'verify' | 'sync') {
+  const res = await fetch(`/api/instagram/${action}`, { method: action === 'status' ? 'GET' : 'POST', headers: authHeaders(), cache: 'no-store' });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error([body?.error || `HTTP ${res.status}`, ...(body?.problems || [])].join(' — '));
+  return body;
+}
+export const fetchInstagramStatus = (): Promise<InstagramApiStatus> => instagramApi('status');
+export const verifyInstagramApi = (): Promise<{ ok: boolean; username?: string; accountType?: string; problems: string[] }> => instagramApi('verify');
+// YouTube channel sync — API key อยู่ฝั่ง server เท่านั้น
+export interface YouTubeSyncStatus {
+  apiKeyConfigured: boolean; adapter: 'rss' | 'api'; lastAdapter: 'rss' | 'api' | null;
+  channelInput: string; channelId: string; channelTitle: string; channelHandle: string;
+  channelVerified: boolean; channelVerifiedAt: string | null; warning?: string;
+  autoSync: boolean; intervalMinutes: 15 | 30 | 60; lastAttemptAt: string | null; lastSuccessAt: string | null;
+  lastResult: { fetched: number; added: number; updated: number } | null; lastError: string | null; lastErrorAt: string | null;
+  consecutiveFailures: number; ignoredCount: number; running: boolean; nextAutoSyncAt: string | null;
+}
+async function youtubeApi(action: 'status' | 'config' | 'sync', body?: unknown): Promise<any> {
+  const res = await fetch(`/api/youtube/${action}`, { method: action === 'status' ? 'GET' : 'POST', headers: authHeaders(), cache: 'no-store', ...(body ? { body: JSON.stringify(body) } : {}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data?.error || `HTTP ${res.status}`), { status: data?.status });
+  return data;
+}
+export const fetchYouTubeSyncStatus = (): Promise<YouTubeSyncStatus> => youtubeApi('status');
+export const saveYouTubeSyncConfig = (cfg: { channelInput?: string; channelId?: string; autoSync?: boolean; intervalMinutes?: 15 | 30 | 60 }): Promise<YouTubeSyncStatus> => youtubeApi('config', cfg);
+export const runYouTubeSync = (): Promise<YouTubeSyncStatus> => youtubeApi('sync');
+export const syncInstagramApi = (): Promise<{ ok: true; fetched: number; added: number; updated: number }> => instagramApi('sync');
 export const addEvent = (event: Omit<EventItem, 'id'>) => apiAdd('events', event);
 export const updateEvent = (id: string, event: Partial<EventItem>) => apiUpdate('events', id, event);
 export const deleteEvent = (id: string) => apiDelete('events', id);
 
 // ─── POLICIES ─────────────────────────────────────────────────────────────────
 
-export const subscribeToPolicies = (cb: (p: Policy[]) => void) => subscribeToCollection<Policy>('policies', cb);
+export const subscribeToPolicies = (cb: (p: Policy[]) => void, onError?: (err: unknown) => void) => subscribeToCollection<Policy>('policies', cb, onError);
 export const addPolicy = (policy: Omit<Policy, 'id'>) => apiAdd('policies', policy);
 export const updatePolicy = (id: string, policy: Partial<Policy>) => apiUpdate('policies', id, policy);
 export const deletePolicy = (id: string) => apiDelete('policies', id);
@@ -229,10 +282,15 @@ function mergeSettings(data: any): SiteSettings {
     contact: { ...DEFAULT_SETTINGS.contact, ...(data?.contact ?? {}) },
     footer: { ...DEFAULT_SETTINGS.footer, ...(data?.footer ?? {}) },
     pages: { ...DEFAULT_SETTINGS.pages, ...(data?.pages ?? {}) },
+    videoDisplay: { ...DEFAULT_SETTINGS.videoDisplay, ...(data?.videoDisplay ?? {}) },
   };
 }
 
+// ค่าล่าสุดในหน่วยความจำ — subscriber ที่มาทีหลังได้ค่าสดทันที โดยไม่ต้องยิง fetch/เปิด SSE ใหม่
+let _latestSettings: SiteSettings | null = null;
+
 function broadcastSettings(s: SiteSettings) {
+  _latestSettings = s;
   _settingsCallbacks.forEach(cb => cb(s));
 }
 
@@ -252,48 +310,64 @@ async function fetchAndBroadcastSettings() {
   }
 }
 
-export const subscribeToSiteSettings = (callback: (settings: SiteSettings) => void): Unsubscribe => {
-  const raw = localStorage.getItem(SETTINGS_LS_KEY);
-  if (raw) { try { callback(mergeSettings(JSON.parse(raw))); } catch { callback(DEFAULT_SETTINGS); } }
-  else { callback(DEFAULT_SETTINGS); }
+// การเชื่อมต่อ live ใช้ร่วมกันทุก subscriber (SSE 1 สาย + fetch 1 ครั้ง) — เดิมแต่ละคอมโพเนนต์เปิด SSE + fetch
+// ของตัวเอง หน้าแรกมี ~5 ตัว = settings ทั้งก้อน (production ~1.4MB เพราะมีรูป base64) ถูกโหลด ~10 รอบต่อการเปิดหน้า
+// และบน HTTP/1.1 (dev) SSE ค้าง 5 สายกินโควตา 6 connection ต่อโดเมน จนรูป/fetch อื่นต่อคิวไม่ได้
+let _settingsES: EventSource | null = null;
+let _settingsFallback: ReturnType<typeof setInterval> | null = null;
 
-  _settingsCallbacks.push(callback);
-
+function connectSettingsStream() {
   // ยิง fetch ตรงครั้งเดียวคู่กับ SSE เสมอ — ไม่รอผลจาก SSE อย่างเดียว เพราะบนเน็ตมือถือ/หลัง Cloudflare
   // การเชื่อมต่อ SSE บางครั้งค้างหรือหลุดช้ากว่าจะ error (ยิ่งถ้าเพิ่งเปิดเว็บครั้งแรกบนเครื่องนั้น
-  // ค่าที่โชว์จาก localStorage ด้านบนอาจเป็นค่าเก่าที่ค้างมาจากการเข้าชมครั้งก่อนๆ) request ตรงนี้ทำให้ได้
+  // ค่าที่โชว์จาก localStorage อาจเป็นค่าเก่าที่ค้างมาจากการเข้าชมครั้งก่อนๆ) request ตรงนี้ทำให้ได้
   // ค่าสดมาทับภายในหนึ่ง round-trip ปกติ โดยไม่ต้องพึ่งว่า SSE จะต่อติดเร็วแค่ไหน
   fetchAndBroadcastSettings();
 
-  let es: EventSource | null = null;
-  let fallback: ReturnType<typeof setInterval> | null = null;
-
-  function connect() {
-    es = new EventSource('/api/settings/stream');
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data?.hero && data?.cta && data?.contact && data?.footer) {
-          const merged = mergeSettings(data);
-          localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(merged));
-          broadcastSettings(merged);
-        }
-      } catch (err) {
-        console.error('[dataService] settings SSE parse error:', err);
+  const es = new EventSource('/api/settings/stream');
+  _settingsES = es;
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data?.hero && data?.cta && data?.contact && data?.footer) {
+        const merged = mergeSettings(data);
+        localStorage.setItem(SETTINGS_LS_KEY, JSON.stringify(merged));
+        broadcastSettings(merged);
       }
-    };
-    es.onerror = () => {
-      es?.close(); es = null;
-      if (!fallback) fallback = setInterval(fetchAndBroadcastSettings, 3000);
-    };
+    } catch (err) {
+      console.error('[dataService] settings SSE parse error:', err);
+    }
+  };
+  es.onerror = () => {
+    es.close();
+    if (_settingsES === es) _settingsES = null;
+    if (!_settingsFallback) _settingsFallback = setInterval(fetchAndBroadcastSettings, 3000);
+  };
+}
+
+function disconnectSettingsStream() {
+  _settingsES?.close();
+  _settingsES = null;
+  if (_settingsFallback) clearInterval(_settingsFallback);
+  _settingsFallback = null;
+}
+
+export const subscribeToSiteSettings = (callback: (settings: SiteSettings) => void): Unsubscribe => {
+  if (_latestSettings) {
+    callback(_latestSettings);
+  } else {
+    const raw = localStorage.getItem(SETTINGS_LS_KEY);
+    if (raw) { try { callback(mergeSettings(JSON.parse(raw))); } catch { callback(DEFAULT_SETTINGS); } }
+    else { callback(DEFAULT_SETTINGS); }
   }
 
-  connect();
+  _settingsCallbacks.push(callback);
+  // subscriber แรกเป็นคนเปิดการเชื่อมต่อ (ที่เหลือแชร์) — ถ้า SSE หลุดไปแล้วจะมี fallback poll ทำงานแทนอยู่
+  if (!_settingsES && !_settingsFallback) connectSettingsStream();
 
   return () => {
-    es?.close();
-    if (fallback) clearInterval(fallback);
     _settingsCallbacks = _settingsCallbacks.filter(c => c !== callback);
+    // subscriber ตัวสุดท้ายออก (เช่น เปลี่ยนหน้า) → ปิดการเชื่อมต่อ
+    if (_settingsCallbacks.length === 0) disconnectSettingsStream();
   };
 };
 
